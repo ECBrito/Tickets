@@ -1,0 +1,41 @@
+import kotlin.Boolean;
+
+-- 1. Definição da Tabela
+CREATE TABLE EventEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    location TEXT NOT NULL,
+    dateISO TEXT NOT NULL, -- Vamos guardar a data como String ISO
+    imageUrl TEXT NOT NULL,
+    price REAL NOT NULL,
+    currency TEXT NOT NULL,
+    isSaved INTEGER AS Boolean NOT NULL DEFAULT 0,     -- SQLite não tem Boolean, usamos 0/1
+    isRegistered INTEGER AS Boolean NOT NULL DEFAULT 0,
+    organizer TEXT NOT NULL
+);
+
+-- 2. Queries (Funções que o Kotlin vai gerar)
+
+-- Selecionar todos
+getAllEvents:
+SELECT * FROM EventEntity;
+
+-- Selecionar por ID
+getEventById:
+SELECT * FROM EventEntity WHERE id = ?;
+
+-- Inserir ou Substituir (Útil para editar)
+insertEvent:
+INSERT OR REPLACE INTO EventEntity(id, title, category, location, dateISO, imageUrl, price, currency, isSaved, isRegistered, organizer)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Atualizar estado de registo (RSVP)
+updateRegistration:
+UPDATE EventEntity
+SET isRegistered = ?
+WHERE id = ?;
+
+-- Apagar todos (útil para limpar cache)
+deleteAll:
+DELETE FROM EventEntity;
