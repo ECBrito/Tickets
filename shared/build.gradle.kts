@@ -3,19 +3,13 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
-    // Plugin do SQLDelight
-    id("app.cash.sqldelight") version "2.0.2"
+    // 1. PLUGIN DE SERIALIZAÇÃO (CRUCIAL PARA O FIREBASE/KMP)
+    kotlin("plugin.serialization") version "1.9.22"
 }
 
 kotlin {
-    // Configuração do Android Target
-    androidTarget {
-        compilations.all {
-            kotlinOptions {
-                jvmTarget = "11" // Forma mais estável de definir o target
-            }
-        }
-    }
+    // CORREÇÃO: Usamos o simples androidTarget() apenas para registar o target.
+    androidTarget()
 
     // Configuração do iOS Target
     listOf(
@@ -28,27 +22,20 @@ kotlin {
         }
     }
 
-    // Dependências
     sourceSets {
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-            // SQLDelight
-            implementation("app.cash.sqldelight:runtime:2.0.2")
-            implementation("app.cash.sqldelight:coroutines-extensions:2.0.2")
-        }
+            // 2. SERIALIZAÇÃO (RUNTIME)
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
-        androidMain.dependencies {
-            implementation("app.cash.sqldelight:android-driver:2.0.2")
-        }
-
-        iosMain.dependencies {
-            implementation("app.cash.sqldelight:native-driver:2.0.2")
-        }
-
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+            // 3. FIREBASE KMP DEPENDÊNCIAS
+            val firebaseVersion = "1.13.1"
+            implementation("dev.gitlive:firebase-core:$firebaseVersion")
+            implementation("dev.gitlive:firebase-auth:$firebaseVersion")
+            implementation("dev.gitlive:firebase-firestore:$firebaseVersion") // Base de Dados na Nuvem
+            implementation("dev.gitlive:firebase-storage:$firebaseVersion")     // Upload de Imagens
         }
     }
 }
@@ -56,19 +43,13 @@ kotlin {
 android {
     namespace = "com.example.eventify.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+
+    // CORREÇÃO: Definimos o JVM Target aqui, no bloco 'android', onde o plugin espera.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
-    }
-}
-
-sqldelight {
-    databases {
-        create("AppDatabase") {
-            packageName.set("com.example.eventify.db")
-        }
     }
 }
