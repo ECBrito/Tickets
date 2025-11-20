@@ -37,6 +37,9 @@ class AuthViewModel : ViewModel() {
     }
 
     fun signOut() {
-        authService.signOut()
+        viewModelScope.launch {
+            // Chama a nova função suspend do AuthService
+            authService.signOutSuspend()
+        }
     }
 }

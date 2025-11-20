@@ -1,46 +1,55 @@
 package com.example.eventify.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 
-/**
- * A styled and reusable OutlinedTextField for the Eventify app.
- *
- * @param value The input text to be shown in the text field.
- * @param onValueChange The callback that is triggered when the input service updates the text.
- * @param label A label to display inside or above the text field.
- * @param modifier The Modifier to be applied to this text field.
- * @param keyboardType The type of keyboard to use, e.g., Text, Number, Email.
- * @param isError Whether the text field is in an error state.
- * @param visualTransformation Transforms the visual representation of the input text, e.g., for password fields.
- * @param supportingText A composable that is displayed below the text field, often for error messages.
- */
 @Composable
-fun EventifyOutlinedTextField(
+fun AuthTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
-    isError: Boolean = false,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    supportingText: @Composable (() -> Unit)? = null
+    isPassword: Boolean = false
 ) {
+    var isPasswordVisible by remember { mutableStateOf(false) }
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        modifier = modifier.fillMaxWidth(),
+        leadingIcon = leadingIcon,
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                    Icon(
+                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
+                    )
+                }
+            }
+        } else null,
+        visualTransformation = if (isPassword && !isPasswordVisible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        singleLine = true,
-        isError = isError,
-        visualTransformation = visualTransformation,
-        supportingText = supportingText
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp)),
+        shape = RoundedCornerShape(8.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        )
     )
 }

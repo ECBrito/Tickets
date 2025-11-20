@@ -18,7 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.eventify.auth.AuthState
-import com.example.eventify.ui.components.AuthTextField
+import com.example.eventify.ui.components.AuthTextField // <--- IMPORTA O COMPONENTE QUE CRIASTE NO OUTRO FICHEIRO
 import com.example.eventify.ui.components.PrimaryButton
 import com.example.eventify.ui.theme.EventifyTheme
 import com.example.eventify.ui.viewmodels.AuthViewModel
@@ -32,12 +32,12 @@ fun SignInScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rememberMe by remember { mutableStateOf(false) }
 
+    // Observa o estado de autenticação do Firebase
     val authState by viewModel.authState.collectAsState()
     val isAuthenticating = authState == AuthState.Initial
 
-    // Lançar navegação para Home se o estado for Autenticado
+    // Se o utilizador estiver autenticado com sucesso, navega para a Home
     LaunchedEffect(authState) {
         if (authState == AuthState.Authenticated) {
             onSignInClick()
@@ -53,9 +53,23 @@ fun SignInScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // ... (UI de Título e Boas Vindas)
+        // Logo ou Título
+        Text(
+            text = "Eventify",
+            style = MaterialTheme.typography.displayMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Welcome back!",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground
+        )
 
-        // Inputs
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Inputs (Usa o teu componente AuthTextField importado)
         AuthTextField(
             value = email,
             onValueChange = { email = it },
@@ -72,27 +86,58 @@ fun SignInScreen(
             isPassword = true
         )
 
+        // Forgot Password Link
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onForgotPasswordClick) {
+                Text("Forgot password?", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // Botão de Login
         PrimaryButton(
             text = "Sign In",
-            enabled = !isAuthenticating && email.isNotBlank() && password.isNotBlank(), // Desativa se estiver a carregar ou campos vazios
+            enabled = !isAuthenticating && email.isNotBlank() && password.isNotBlank(),
             onClick = {
-                viewModel.signIn(email, password) // <--- CHAMA O LOGIN FIREBASE
+                // Chama o login real do Firebase
+                viewModel.signIn(email, password)
             }
         )
 
-        // Mensagem de Erro
+        // Mensagem de Erro (se o login falhar)
         if (authState is AuthState.Error) {
             Text(
-                (authState as AuthState.Error).message,
+                text = (authState as AuthState.Error).message,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
 
-        // ... (Botões Google e Sign Up Link)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Link para Registo
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Don't have an account? ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = "Sign up",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onSignUpClick() }
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun SignInScreenPreview() {
+    EventifyTheme(darkTheme = true) {
+        SignInScreen(onSignInClick = {}, onForgotPasswordClick = {}, onSignUpClick = {})
     }
 }
