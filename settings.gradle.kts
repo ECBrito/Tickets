@@ -1,6 +1,7 @@
 rootProject.name = "Eventify"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
+
 pluginManagement {
     repositories {
         google {
@@ -25,6 +26,13 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+
+        // --- ADD THE GITLIVE REPO HERE ---
+        maven { url = uri("https://maven.gitlive.org/repo") } // <-- ADD THIS LINE
+
+        // --- Existing Repositories ---
+        maven { url = uri("https://s01.oss.sonatype.org/content/repositories/releases/") }
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

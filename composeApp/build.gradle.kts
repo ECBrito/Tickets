@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    // Apply the Google Services plugin, but ensure it's not applied twice if defined elsewhere
+    id("com.google.gms.google-services")
 }
 
 kotlin {
@@ -18,29 +20,38 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
-            implementation("androidx.compose.material:material-icons-extended:1.6.0")
-            // A dependência debugImplementation foi movida para o bloco 'dependencies' no final do arquivo.
         }
 
         commonMain.dependencies {
+            // Google Maps
             implementation("com.google.maps.android:maps-compose:4.3.3")
             implementation("com.google.android.gms:play-services-maps:18.2.0")
-            implementation("androidx.compose.material:material-icons-extended")
+
+            // UI Libs
+            implementation("androidx.compose.material:material-icons-extended:1.6.0")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
+            implementation(libs.io.coil.compose)
+
+            // Compose Multiplatform
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
+
+            // Navigation & Lifecycle
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.androidx.navigation.compose)
+
+            // Shared Module
             implementation(projects.shared)
 
-            // DEPENDÊNCIAS DE UI DO EVENTIFY:
-            implementation(libs.androidx.navigation.compose)
-            implementation(libs.io.coil.compose)
+            // FIREBASE (Using correct syntax for platform/BOM)
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.1"))
         }
+
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
@@ -74,8 +85,6 @@ android {
     }
 }
 
-// LOCAL CORRETO PARA DEPENDÊNCIAS ESPECÍFICAS DE CONFIGURAÇÃO ANDROID (DEBUG, RELEASE)
 dependencies {
-    // Movido de androidMain.dependencies para resolver 'Unresolved reference: debugImplementation'
     debugImplementation(compose.uiTooling)
 }
