@@ -15,21 +15,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.eventify.ui.components.AuthTextField
 import com.example.eventify.ui.components.PrimaryButton
 import com.example.eventify.ui.theme.EventifyTheme
+import com.example.eventify.ui.viewmodels.RegisterViewModel
 
 @Composable
 fun SignUpScreen(
     onSignUpClick: () -> Unit,
     onSignInClick: () -> Unit
 ) {
+    val registerViewModel: RegisterViewModel = viewModel()
+
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -88,10 +94,45 @@ fun SignUpScreen(
             isPassword = true
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Mostrar erro
+        if (!errorMessage.isNullOrEmpty()) {
+            Text(
+                text = errorMessage!!,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         // Botão de Registo
-        PrimaryButton(text = "Sign Up", onClick = onSignUpClick)
+        PrimaryButton(
+            text = if (isLoading) "Creating..." else "Sign Up",
+            onClick = {
+                if (password != confirmPassword) {
+                    errorMessage = "Passwords do not match"
+                    return@PrimaryButton
+                }
+
+                isLoading = true
+                errorMessage = null
+
+                registerViewModel.registerOrganizer(
+                    name = name,
+                    email = email,
+                    password = password,
+                    onSuccess = {
+                        isLoading = false
+                        onSignUpClick()
+                    },
+                    onError = { error ->
+                        isLoading = false
+                        errorMessage = error
+                    }
+                )
+            }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -117,13 +158,5 @@ fun SignUpScreen(
                 modifier = Modifier.clickable { onSignInClick() }
             )
         }
-    }
-}
-
-@Preview
-@Composable
-fun SignUpScreenPreview() {
-    EventifyTheme(darkTheme = true) {
-        SignUpScreen(onSignUpClick = {}, onSignInClick = {})
     }
 }

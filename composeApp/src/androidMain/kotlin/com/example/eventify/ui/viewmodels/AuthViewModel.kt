@@ -23,8 +23,6 @@ class AuthViewModel : ViewModel() {
         )
 
     fun signIn(email: String, password: String) {
-        // Limpar estados de erro ao iniciar
-        // (Nota: Numa implementação real, adicionarias validações aqui)
         viewModelScope.launch {
             authService.signIn(email, password)
         }
@@ -38,7 +36,6 @@ class AuthViewModel : ViewModel() {
 
     fun signOut() {
         viewModelScope.launch {
-            // Chama a nova função suspend do AuthService
             authService.signOutSuspend()
         }
     }

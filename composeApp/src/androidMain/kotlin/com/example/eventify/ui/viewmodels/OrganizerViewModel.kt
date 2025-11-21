@@ -1,58 +1,90 @@
 package com.example.eventify.ui.viewmodels
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.History
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.eventify.model.Category
 import com.example.eventify.model.Event
-import com.example.eventify.repository.EventRepository
-import com.example.eventify.ui.screens.organizer.OrganizerStat
+import com.example.eventify.repository.EventRepositoryKMM
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-class OrganizerViewModel : ViewModel() {
+class OrganizerViewModel(
+    private val repository: EventRepositoryKMM
+) : ViewModel() {
 
-    private val repository = EventRepository
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // Estado das Estatísticas
-    private val _stats = MutableStateFlow<List<OrganizerStat>>(emptyList())
-    val stats: StateFlow<List<OrganizerStat>> = _stats.asStateFlow()
-
-    // Estado dos Eventos Recentes
-    private val _recentEvents = MutableStateFlow<List<Event>>(emptyList())
-    val recentEvents: StateFlow<List<Event>> = _recentEvents.asStateFlow()
+    private val _events = MutableStateFlow<List<Event>>(emptyList())
+    val events: StateFlow<List<Event>> = _events.asStateFlow()
 
     init {
-        loadDashboard()
+        // Coleção reativa dos eventos
+        viewModelScope.launch {
+            repository.events.collect { list ->
+                _events.value = list
+            }
+        }
+
+        // Começar a escutar Firestore
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.startListening()
+            _isLoading.value = false
+        }
     }
 
-    fun loadDashboard() {
+    fun createEvent(
+        id: String,
+        title: String,
+        description: String,
+        location: String,
+        imageUrl: String,
+        dateTime: String,  // ISO 8601
+        category: Category
+    ) {
+        val newEvent = Event(
+            id = id,
+            title = title,
+            description = description,
+            location = location,
+            imageUrl = imageUrl,
+            dateTime = dateTime,
+            category = category,
+            registeredUserIds = emptyList(),
+            isRegistered = false
+        )
+
         viewModelScope.launch {
-            // 1. Buscar eventos onde eu sou o organizador
-            val myEvents = repository.getHostedEvents()
+            _isLoading.value = true
+            repository.addEvent(newEvent)
+            _isLoading.value = false
+        }
+    }
 
-            // 2. Calcular Estatísticas (Simuladas com base nos dados)
-            val totalEvents = myEvents.size
-            val upcomingCount = myEvents.count { it.dateTime.year >= 2024 } // Exemplo simples
+    fun deleteEvent(eventId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.deleteEvent(eventId)
+            _isLoading.value = false
+        }
+    }
 
-            // Simulação de receita e registos (já que o nosso modelo Event não tem vendas reais ainda)
-            val totalRevenue = myEvents.sumOf { it.price * 100 } // Mock: 100 bilhetes vendidos por evento
-            val totalRegistrations = myEvents.size * 150 // Mock: 150 pessoas por evento
+    fun toggleEventRegistration(eventId: String, userId: String) {
+        viewModelScope.launch {
+            repository.toggleEventRegistration(eventId, userId)
+        }
+    }
 
-            _stats.value = listOf(
-                OrganizerStat("Total Revenue", "$${totalRevenue.toInt()}", "+5% this month", true, Icons.Default.AttachMoney),
-                OrganizerStat("Registrations", "$totalRegistrations", "+12% this month", true, Icons.Default.Group),
-                OrganizerStat("Upcoming", "$upcomingCount", null, true, Icons.Default.Event),
-                OrganizerStat("Hosted", "$totalEvents", null, true, Icons.Default.History)
-            )
-
-            // 3. Atualizar lista de recentes (os 3 primeiros)
-            _recentEvents.value = myEvents.take(5)
+    fun searchEvents(query: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val filtered = repository.searchEvents(query)
+            _events.value = filtered
+            _isLoading.value = false
         }
     }
 }

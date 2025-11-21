@@ -1,82 +1,62 @@
-package com.example.eventify.ui.viewmodels
+package com.example.eventify.viewmodels
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.eventify.model.Event
-import com.example.eventify.model.FilterState
-import com.example.eventify.model.PriceType
-import com.example.eventify.repository.EventRepository
+import com.example.eventify.repository.EventRepositoryKMM
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-class ExploreViewModel : ViewModel() {
+class ExploreViewModelKMM(private val repository: EventRepositoryKMM) {
 
-    // MUDANÇA: Referência ao Singleton
-    private val repository = EventRepository
+    // CoroutineScope do KMM
+    private val viewModelScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    // Search query
     private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _filterState = MutableStateFlow(FilterState())
+    // Filtered events
+    private val _filteredEvents = MutableStateFlow<List<Event>>(emptyList())
+    val filteredEvents: StateFlow<List<Event>> = _filteredEvents.asStateFlow()
 
-    // O 'combine' vai reagir sempre que o repositório for atualizado?
-    // Numa arquitetura reativa real (Room/Flow), sim. Aqui com Listas estáticas,
-    // precisamos de um "trigger" para recarregar se adicionarmos eventos.
-    // Para simplificar, assumimos que a busca inicial já traz os dados novos.
+    // Loading state
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val filteredEvents: StateFlow<List<Event>> = combine(
-        _searchQuery,
-        _filterState
-    ) { query, filters ->
-        // Busca sempre a lista mais atual do repositório
-        var events = repository.searchEvents(query)
+    init {
+        loadAllEvents()
+    }
 
-        if (filters.categories.isNotEmpty()) {
-            events = events.filter { event -> filters.categories.contains(event.category) }
-        }
-
-        if (filters.priceType != PriceType.ALL) {
-            events = events.filter { event ->
-                when (filters.priceType) {
-                    PriceType.FREE -> event.price == 0.0
-                    PriceType.PAID -> event.price > 0.0
-                    else -> true
-                }
+    private fun loadAllEvents() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            repository.startListening()
+            repository.events.collect { events ->
+                updateFilteredEvents(events, _searchQuery.value)
             }
+            _isLoading.value = false
         }
-
-        val dateFrom = filters.dateFrom
-        if (dateFrom != null) {
-            events = events.filter { event -> event.dateTime.date >= dateFrom }
-        }
-
-        val dateTo = filters.dateTo
-        if (dateTo != null) {
-            events = events.filter { event -> event.dateTime.date <= dateTo }
-        }
-
-        events
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
-
-    fun onSearchQueryChange(newQuery: String) {
-        _searchQuery.value = newQuery
     }
 
-    fun onFilterApply(newFilters: FilterState) {
-        _filterState.value = newFilters
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+        updateFilteredEvents(repository.events.value, query)
     }
 
-    // Função para forçar atualização (útil quando voltamos de criar evento)
-    fun refresh() {
-        // Uma forma simples de re-disparar o fluxo é redefinir a query para ela mesma
-        _searchQuery.value = _searchQuery.value
+    private fun updateFilteredEvents(allEvents: List<Event>, query: String) {
+        val filtered = if (query.isBlank()) allEvents
+        else allEvents.filter { e ->
+            e.title.contains(query, ignoreCase = true) ||
+                    e.description.contains(query, ignoreCase = true) ||
+                    e.location.contains(query, ignoreCase = true)
+        }
+        _filteredEvents.value = filtered
     }
 }

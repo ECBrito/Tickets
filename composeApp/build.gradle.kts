@@ -44,12 +44,15 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)
-
+            implementation("dev.gitlive:firebase-auth:2.1.0")
             // Shared Module
             implementation(projects.shared)
 
             // FIREBASE (Using correct syntax for platform/BOM)
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.1"))
+            // Firebase KTX
+            implementation("com.google.firebase:firebase-auth-ktx")
+            implementation("com.google.firebase:firebase-firestore-ktx")
         }
 
         commonTest.dependencies {

@@ -20,14 +20,31 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.eventify.ui.components.PrimaryButton
 import com.example.eventify.ui.theme.EventifyTheme
+import com.google.firebase.auth.FirebaseAuth
 
+// --- ViewModel para Profile ---
+class ProfileViewModel : androidx.lifecycle.ViewModel() {
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+
+    fun logout(onComplete: () -> Unit, onError: (String) -> Unit) {
+        try {
+            auth.signOut()
+            onComplete()
+        } catch (e: Exception) {
+            onError(e.localizedMessage ?: "Erro ao fazer logout")
+        }
+    }
+}
+
+// --- Tela de Perfil ---
 @Composable
 fun ProfileScreen(
-    onLogoutClick: () -> Unit,
-    onOrganizerClick: () -> Unit // <--- Novo parâmetro
+    onNavigateToLogin: () -> Unit,
+    onOrganizerClick: () -> Unit,
+    viewModel: ProfileViewModel = viewModel()
 ) {
     Column(
         modifier = Modifier
@@ -37,7 +54,7 @@ fun ProfileScreen(
     ) {
         ProfileHeader()
 
-        // --- Botão para mudar para Organizador ---
+        // Botão para mudar para modo Organizador
         Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
             Button(
                 onClick = onOrganizerClick,
@@ -78,7 +95,12 @@ fun ProfileScreen(
         // Botão de Logout
         Box(modifier = Modifier.padding(horizontal = 16.dp)) {
             Button(
-                onClick = onLogoutClick,
+                onClick = {
+                    viewModel.logout(
+                        onComplete = { onNavigateToLogin() },
+                        onError = { errorMsg -> println("Erro no logout: $errorMsg") }
+                    )
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = MaterialTheme.shapes.medium
@@ -93,10 +115,7 @@ fun ProfileScreen(
     }
 }
 
-// ... (Mantenha o resto dos componentes auxiliares: ProfileHeader, SettingsSection, etc. iguais)
-// Apenas certifique-se de que as funções auxiliares (ProfileHeader, SettingsSection, etc.) estão no ficheiro.
-// Se precisar que eu reescreva o ficheiro TODO, avise.
-
+// --- Componentes auxiliares ---
 @Composable
 fun ProfileHeader() {
     Column(
@@ -114,13 +133,13 @@ fun ProfileHeader() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Edgar Boss",
+            text = FirebaseAuth.getInstance().currentUser?.displayName ?: "No Name",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "edgar@example.com",
+            text = FirebaseAuth.getInstance().currentUser?.email ?: "No Email",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -182,7 +201,6 @@ fun SettingsSwitchItem(icon: ImageVector, title: String, checked: Boolean, onChe
 @Composable
 fun ProfileScreenPreview() {
     EventifyTheme(darkTheme = true) {
-        // Adiciona o onOrganizerClick = {} aqui também
-        ProfileScreen(onLogoutClick = {}, onOrganizerClick = {})
+        ProfileScreen(onNavigateToLogin = {}, onOrganizerClick = {})
     }
 }

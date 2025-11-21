@@ -8,9 +8,18 @@ enum class EventCategory {
     SPORTS,
     TECHNOLOGY,
     ART,
-    OTHER,
-    CONCERT,      // Adicionado para compatibilidade com o teu código anterior
-    CONFERENCE,   // Adicionado para compatibilidade
-    WORKSHOP,     // Adicionado para compatibilidade
-    FESTIVAL      // Adicionado para compatibilidade
+    FOOD,
+    BUSINESS,
+    WORKSHOP,
+    CONCERT,
+    CONFERENCE,
+    FESTIVAL,
+    OTHER;
+
+    companion object {
+        // Helper para converter string em categoria sem crashar
+        fun fromString(value: String): EventCategory {
+            return entries.find { it.name.equals(value, ignoreCase = true) } ?: OTHER
+        }
+    }
 }
