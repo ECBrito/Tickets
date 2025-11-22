@@ -1,22 +1,25 @@
-package com.example.eventify.ui.viewmodels
+package com.example.eventify.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+
 import com.example.eventify.model.Category
 import com.example.eventify.model.Event
-import com.example.eventify.repository.EventRepositoryKMM
+import com.example.eventify.repository.EventRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 class OrganizerViewModel(
-    private val repository: EventRepositoryKMM
+    private val repository: EventRepository // <--- Nome da interface corrigido
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // Mantemos duas listas: Todos os eventos (raw) e os Filtrados (display)
+    private val _allEvents = MutableStateFlow<List<Event>>(emptyList())
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
@@ -24,26 +27,24 @@ class OrganizerViewModel(
     init {
         // Coleção reativa dos eventos
         viewModelScope.launch {
-            repository.events.collect { list ->
-                _events.value = list
-            }
-        }
-
-        // Começar a escutar Firestore
-        viewModelScope.launch {
             _isLoading.value = true
-            repository.startListening()
-            _isLoading.value = false
+
+            // O 'collect' substitui o 'startListening' antigo
+            repository.events.collect { list ->
+                _allEvents.value = list
+                _events.value = list // Inicialmente mostra tudo
+                _isLoading.value = false
+            }
         }
     }
 
     fun createEvent(
-        id: String,
+        id: String, // Nota: Se o ID for vazio "", o repo gera um novo
         title: String,
         description: String,
         location: String,
         imageUrl: String,
-        dateTime: String,  // ISO 8601
+        dateTime: String,
         category: Category
     ) {
         val newEvent = Event(
@@ -53,7 +54,7 @@ class OrganizerViewModel(
             location = location,
             imageUrl = imageUrl,
             dateTime = dateTime,
-            category = category,
+            category = category.name, // Assume que Category é um Enum ou tem .name
             registeredUserIds = emptyList(),
             isRegistered = false
         )
@@ -80,11 +81,14 @@ class OrganizerViewModel(
     }
 
     fun searchEvents(query: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            val filtered = repository.searchEvents(query)
-            _events.value = filtered
-            _isLoading.value = false
+        // Filtramos a lista localmente em vez de chamar o repositório
+        // Isto é mais rápido e reativo
+        val currentList = _allEvents.value
+
+        if (query.isBlank()) {
+            _events.value = currentList
+        } else {
+            _events.value = repository.searchEvents(query, currentList)
         }
     }
 }

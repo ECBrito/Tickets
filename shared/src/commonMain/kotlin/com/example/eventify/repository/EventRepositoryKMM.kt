@@ -1,18 +1,13 @@
 package com.example.eventify.repository
 
 import com.example.eventify.model.Event
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 
-interface EventRepositoryKMM {
-    val events: StateFlow<List<Event>>
-
-    suspend fun startListening()
-    fun stopListening()
-
+interface EventRepository {
+    val events: Flow<List<Event>>
     suspend fun addEvent(event: Event): Boolean
     suspend fun deleteEvent(eventId: String): Boolean
-    fun getEventById(id: String): Event?
-    fun searchEvents(query: String): List<Event>
     suspend fun getEventsRegisteredByUser(userId: String): List<Event>
     suspend fun toggleEventRegistration(eventId: String, userId: String)
+    fun searchEvents(query: String, currentList: List<Event>): List<Event>
 }

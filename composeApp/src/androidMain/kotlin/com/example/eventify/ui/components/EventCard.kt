@@ -16,16 +16,18 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.eventify.model.Event
-import com.example.eventify.model.EventCategory
 import com.example.eventify.ui.theme.EventifyTheme
 import kotlinx.datetime.LocalDateTime
 
 // Helper para formatar data
-private fun formatDateTime(dateTime: LocalDateTime): String {
-    val day = dateTime.dayOfMonth.toString().padStart(2, '0')
-    val month = dateTime.month.name.take(3)
-    val hour = dateTime.hour.toString().padStart(2, '0')
-    val minute = dateTime.minute.toString().padStart(2, '0')
+private fun formatDateTime(dateTime: String): String {
+    val parsed = LocalDateTime.parse(dateTime)
+
+    val day = parsed.dayOfMonth.toString().padStart(2, '0')
+    val month = parsed.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+    val hour = parsed.hour.toString().padStart(2, '0')
+    val minute = parsed.minute.toString().padStart(2, '0')
+
     return "$day $month, $hour:$minute"
 }
 
@@ -62,7 +64,7 @@ fun EventCard(
             // Conteúdo
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = event.category.name,
+                    text = event.category,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -95,24 +97,5 @@ fun EventCard(
                 )
             }
         }
-    }
-}
-
-@Preview
-@Composable
-fun EventCardPreview() {
-    EventifyTheme(darkTheme = true) {
-        // Evento Mock para Preview
-        EventCard(
-            event = Event(
-                id = "1",
-                title = "Preview Event",
-                description = "Desc",
-                date = "2024-01-01T12:00:00", // Formato ISO
-                location = "Lisbon",
-                category = EventCategory.MUSIC
-            ),
-            onClick = {}
-        )
     }
 }

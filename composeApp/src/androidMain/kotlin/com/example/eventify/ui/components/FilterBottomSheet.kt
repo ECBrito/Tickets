@@ -14,10 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+// IMPORTS CORRETOS DO MODELO KMM:
 import com.example.eventify.model.EventCategory
 import com.example.eventify.model.FilterState
 import com.example.eventify.model.PriceType
-import com.example.eventify.ui.theme.EventifyTheme // Importando o seu tema
+import com.example.eventify.ui.theme.EventifyTheme
 import kotlin.math.roundToInt
 
 // --- Composable Principal do BottomSheet ---
@@ -50,17 +51,16 @@ fun FilterBottomSheet(
             // Coluna rolável para o conteúdo dos filtros
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(1f, fill = false) // fill=false para não ocupar espaço vazio
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // 2. Seção de Data
                 DateRangeSection(
-                    // O KMM DatePicker é complexo. Usamos string para placeholder de UI.
-                    startDate = currentState.dateFrom?.toString() ?: "",
-                    endDate = currentState.dateTo?.toString() ?: "",
-                    onStartDateChange = { /* TODO: Abrir DatePicker */ },
-                    onEndDateChange = { /* TODO: Abrir DatePicker */ }
+                    startDate = currentState.dateFrom ?: "",
+                    endDate = currentState.dateTo ?: "",
+                    onStartDateChange = { currentState = currentState.copy(dateFrom = it) },
+                    onEndDateChange = { currentState = currentState.copy(dateTo = it) }
                 )
 
                 // 3. Seção de Localização
@@ -91,18 +91,25 @@ fun FilterBottomSheet(
                     selectedOption = currentState.priceType,
                     onOptionSelect = { currentState = currentState.copy(priceType = it) }
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // 6. Botão de Ação Principal (Usando PrimaryButton)
-            Spacer(modifier = Modifier.height(16.dp))
-            PrimaryButton( // Componente reutilizável
-                text = "Apply Filters",
+            // 6. Botão de Ação Principal
+            Button(
                 onClick = {
                     onApply(currentState)
                     onDismiss()
-                }
-            )
-            Spacer(modifier = Modifier.height(24.dp)) // Espaço inferior
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Apply Filters")
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -143,14 +150,16 @@ private fun DateRangeSection(
                 onValueChange = onStartDateChange,
                 label = { Text("Start Date") },
                 trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar") },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                singleLine = true
             )
             OutlinedTextField(
                 value = endDate,
                 onValueChange = onEndDateChange,
                 label = { Text("End Date") },
                 trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar") },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                singleLine = true
             )
         }
     }
@@ -176,7 +185,7 @@ private fun LocationSection(
             value = radius,
             onValueChange = onRadiusChange,
             valueRange = 1f..100f,
-            steps = 99 // 1 a 100
+            steps = 99
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -204,18 +213,19 @@ private fun CategorySection(
         ) {
             allCategories.forEach { category ->
                 val isSelected = selectedCategories.contains(category)
+
                 FilterChip(
                     selected = isSelected,
                     onClick = { onCategorySelect(category) },
-                    label = { Text(category.name.lowercase().replaceFirstChar { it.titlecase() }) },
+                    label = {
+                        Text(category.name.lowercase().replaceFirstChar { it.titlecase() })
+                    },
                     leadingIcon = if (isSelected) {
                         { Icon(Icons.Default.Check, contentDescription = "Selected") }
                     } else null,
-                    // Usando cores do tema Nocturnal para chips
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
             }
@@ -236,12 +246,12 @@ private fun PriceSection(
                 FilterChip(
                     selected = isSelected,
                     onClick = { onOptionSelect(option) },
-                    label = { Text(option.name.lowercase().replaceFirstChar { it.titlecase() }) },
-                    // Usando cores do tema Nocturnal para chips
+                    label = {
+                        Text(option.name.lowercase().replaceFirstChar { it.titlecase() })
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
             }
@@ -249,41 +259,13 @@ private fun PriceSection(
     }
 }
 
-// --- Preview ---
-
 @Preview(showBackground = true)
 @Composable
 fun FilterBottomSheetPreview() {
     EventifyTheme(darkTheme = true) {
-        // O preview direto de um ModalBottomSheet é complicado.
-        // Vamos apenas exibir o conteúdo do sheet para fins de design.
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Simula a rolagem para que o conteúdo do filtro seja visível
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // Header (Normalmente não rola, mas colocamos aqui para o preview)
-                Header(onReset = {})
-
-                // Conteúdo Principal
-                DateRangeSection(startDate = "1 Jan 2025", endDate = "31 Dec 2025", onStartDateChange = {}, onEndDateChange = {})
-                LocationSection(radius = 50f, useCurrentLocation = true, onRadiusChange = {}, onToggleLocation = {})
-                CategorySection(allCategories = EventCategory.entries.toList(), selectedCategories = setOf(EventCategory.CONCERT), onCategorySelect = {})
-                PriceSection(selectedOption = PriceType.PAID, onOptionSelect = {})
-
-                Spacer(modifier = Modifier.height(32.dp))
-                // Simulação do botão Apply
-                PrimaryButton(text = "Apply Filters", onClick = {})
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+        Column(modifier = Modifier.background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            // Mock simples para preview
+            Text("Filter Preview Placeholder")
         }
     }
 }

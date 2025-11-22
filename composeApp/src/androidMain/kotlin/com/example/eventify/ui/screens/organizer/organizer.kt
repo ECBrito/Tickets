@@ -1,10 +1,9 @@
 package com.example.eventify.ui.screens.organizer
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.items // <--- O IMPORT QUE CORRIGE O ERRO DO 'INT'
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,45 +12,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
-import com.example.eventify.repository.EventRepositoryImplKMM
-import com.example.eventify.repository.EventRepositoryKMM
 import com.example.eventify.ui.theme.EventifyTheme
-import com.example.eventify.ui.viewmodels.OrganizerViewModel
 
-// --- ViewModel Factory ---
-class OrganizerViewModelFactory(private val repository: EventRepositoryKMM) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(OrganizerViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return OrganizerViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
-
-// --- Screen Principal ---
 @Composable
 fun OrganizerDashboardScreen(
-    repository: EventRepositoryKMM = EventRepositoryImplKMM(),
     onCreateEventClick: () -> Unit,
-    onEventClick: (String) -> Unit,
-    viewModel: OrganizerViewModel = viewModel(
-        factory = OrganizerViewModelFactory(repository)
-    )
+    onEventClick: (String) -> Unit
 ) {
+    // Agora esta função já existe no AppModule
+    val viewModel = remember { AppModule.provideOrganizerViewModel() }
+
     val events by viewModel.events.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -79,8 +57,17 @@ fun OrganizerDashboardScreen(
 
             // Lista de eventos
             if (events.isEmpty()) {
-                item { Text("No events created yet.", color = Color.Gray) }
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                        if (isLoading) {
+                            CircularProgressIndicator()
+                        } else {
+                            Text("No events created yet.", color = Color.Gray)
+                        }
+                    }
+                }
             } else {
+                // O import lá em cima (lazy.items) faz isto funcionar
                 items(events) { event ->
                     RecentEventItem(event) { onEventClick(event.id) }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -92,7 +79,6 @@ fun OrganizerDashboardScreen(
     }
 }
 
-// --- Componentes ---
 @Composable
 fun OrganizerHeader() {
     Row(
@@ -148,9 +134,6 @@ fun RecentEventItem(event: Event, onClick: () -> Unit) {
 @Composable
 fun OrganizerDashboardPreview() {
     EventifyTheme(darkTheme = true) {
-        OrganizerDashboardScreen(
-            onCreateEventClick = {},
-            onEventClick = {}
-        )
+        // Preview vazio ou com mocks
     }
 }

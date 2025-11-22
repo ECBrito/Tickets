@@ -22,14 +22,15 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
+                implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
                 // Firebase KMP (GitLive)
                 implementation("dev.gitlive:firebase-app:2.1.0")
                 implementation("dev.gitlive:firebase-auth:2.1.0")
                 implementation("dev.gitlive:firebase-firestore:2.1.0")
                 implementation("dev.gitlive:firebase-storage:2.1.0")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3") // versão recente
-
+                implementation("dev.gitlive:firebase-firestore:1.12.0")
+                implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0") // Versão pode variar
                 // SQLDelight runtime comum
                 implementation("app.cash.sqldelight:runtime:2.0.1")
                 implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
