@@ -60,4 +60,7 @@ object AppModule {
     fun provideOrganizerEventDashboardViewModel(eventId: String): OrganizerEventDashboardViewModel {
         return OrganizerEventDashboardViewModel(eventRepository, eventId)
     }
+    fun provideEditProfileViewModel(): EditProfileViewModel {
+        return EditProfileViewModel(eventRepository, currentUserId)
+    }
 }

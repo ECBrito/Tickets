@@ -15,26 +15,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.eventify.di.AppModule
+import com.example.eventify.model.UserProfile
 import com.example.eventify.ui.theme.EventifyTheme
 
 @Composable
 fun ProfileScreen(
     onLogoutClick: () -> Unit,
-    onOrganizerClick: () -> Unit
+    onOrganizerClick: () -> Unit,
+    onEditProfileClick: () -> Unit // <--- NOVO PARÂMETRO
 ) {
+    // 1. Ler os dados do utilizador para mostrar no Header
+    val viewModel = remember { AppModule.provideEditProfileViewModel() }
+    val profile by viewModel.profile.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
-        ProfileHeader()
+        // Passamos o profile para o Header
+        ProfileHeader(profile)
 
         // --- Botão para mudar para Organizador ---
         Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
@@ -60,7 +69,12 @@ fun ProfileScreen(
 
         // Definições da Conta
         SettingsSection(title = "Account") {
-            SettingsItem(icon = Icons.Default.Person, title = "Personal Information", onClick = {})
+            // 2. LIGAR O CLIQUE AQUI
+            SettingsItem(
+                icon = Icons.Default.Person,
+                title = "Personal Information",
+                onClick = onEditProfileClick // <--- Navega para editar
+            )
             SettingsItem(icon = Icons.Default.Payment, title = "Payment Methods", onClick = {})
             SettingsItem(icon = Icons.Default.Security, title = "Security", onClick = {})
         }
@@ -101,29 +115,50 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileHeader() {
+fun ProfileHeader(profile: UserProfile) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 40.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AsyncImage(
-            model = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=500",
-            contentDescription = "Profile Picture",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        )
+        // Lógica para mostrar foto do Firebase ou placeholder
+        if (profile.photoUrl.isNotBlank()) {
+            AsyncImage(
+                model = profile.photoUrl,
+                contentDescription = "Profile Picture",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+        } else {
+            // Placeholder se não houver foto
+            Surface(
+                modifier = Modifier.size(100.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.padding(20.dp),
+                    tint = Color.Gray
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Nome Real
         Text(
-            text = "Edgar Boss",
+            text = if (profile.name.isNotBlank()) profile.name else "User",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
+        // Email Real (ou Bio se preferires)
         Text(
-            text = "edgar@example.com",
+            text = if (profile.email.isNotBlank()) profile.email else profile.bio.ifBlank { "No bio yet" },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -185,6 +220,6 @@ fun SettingsSwitchItem(icon: ImageVector, title: String, checked: Boolean, onChe
 @Composable
 fun ProfileScreenPreview() {
     EventifyTheme(darkTheme = true) {
-        ProfileScreen(onLogoutClick = {}, onOrganizerClick = {})
+        ProfileScreen(onLogoutClick = {}, onOrganizerClick = {}, onEditProfileClick = {})
     }
 }

@@ -1,9 +1,9 @@
 package com.example.eventify.model
-
+import kotlinx.serialization.Serializable
 enum class Category { MUSIC, SPORTS, THEATER, OTHER }
 
 
-
+@Serializable // <--- TEM DE TER ESTA ANOTAÇÃO
 data class Event(
     val id: String = "",
     val title: String = "",

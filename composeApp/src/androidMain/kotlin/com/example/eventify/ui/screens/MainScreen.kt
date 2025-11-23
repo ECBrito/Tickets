@@ -3,6 +3,15 @@ package com.example.eventify.ui.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -10,8 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavController
 import com.example.eventify.di.AppModule
 import com.example.eventify.ui.Screen
-import com.example.eventify.ui.components.BottomNavItem // O teu componente
-import com.example.eventify.ui.components.EventifyBottomBar // O teu componente
+import com.example.eventify.ui.components.BottomNavItem
+import com.example.eventify.ui.components.EventifyBottomBar
 import com.example.eventify.ui.screens.organizer.OrganizerDashboardScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -19,7 +28,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun MainScreen(
     navController: NavController
 ) {
-    // Estado para controlar a tab ativa usando as ROTAS do teu componente
+    // Estado para controlar qual tab está ativa
     var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
 
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -27,61 +36,75 @@ fun MainScreen(
     Scaffold(
         containerColor = Color(0xFF0B0A12),
         bottomBar = {
-            // Usando a TUA barra personalizada de AppBars.kt
+            // Barra de navegação personalizada
             EventifyBottomBar(
                 onNavigate = { route -> currentRoute = route }
             )
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            // Trocamos o ecrã com base na Rota (String) definida em AppBars.kt
-            when (currentRoute) {
-                BottomNavItem.Home.route -> HomeScreenContent(
-                    onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
-                    onSeeAllClick = { currentRoute = BottomNavItem.Explore.route } // Vai para Explore
-                )
-                // Dentro do when(currentRoute)
-                BottomNavItem.Explore.route -> {
-                    // O ViewModel é injetado DENTRO do ExploreScreen agora,
-                    // mas se quiseres podes manter o remember aqui.
-                    // A minha versão do ExploreScreen acima já tem o remember lá dentro.
 
-                    ExploreScreen(
+            // O 'when' decide que ecrã mostrar com base na rota atual
+            when (currentRoute) {
+                // 1. HOME
+                BottomNavItem.Home.route -> {
+                    HomeScreenContent(
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
-                        onMapClick = { navController.navigate(Screen.EXPLORE_MAP) } // <--- Passa a navegação para o mapa
+                        onSeeAllClick = { currentRoute = BottomNavItem.Explore.route }
                     )
                 }
-                BottomNavItem.MyEvents.route -> MyEvents(
-                    userId = currentUserId,
-                    onEventClick = { ticketId ->
-                        // --- CORREÇÃO CRÍTICA AQUI ---
-                        // Antes estava: navController.navigate(Screen.eventDetail(ticketId))  <-- ERRADO
-                        // Agora vamos para o ecrã do BILHETE:
-                        navController.navigate(Screen.ticketDetail(ticketId, "O Meu Bilhete"))
-                    }
-                )
-                BottomNavItem.Profile.route -> ProfileScreen(
-                    onLogoutClick = {
-                        // 1. LOGOUT DO FIREBASE (O passo que faltava!)
-                        try {
-                            FirebaseAuth.getInstance().signOut()
-                        } catch (e: Exception) {
-                            println("Erro ao fazer logout: ${e.message}")
-                        }
 
-                        // 2. NAVEGAÇÃO SEGURA
-                        // Volta para o ecrã de Login (AUTH_ROOT) e limpa a pilha de trás
-                        // para que o utilizador não possa voltar ao Perfil clicando em "Voltar"
-                        navController.navigate(Screen.AUTH_ROOT) {
-                            popUpTo(0) { inclusive = true } // Limpa tudo
-                            launchSingleTop = true
-                        }
-                    },
-                    onOrganizerClick = {
-                        navController.navigate(Screen.ORGANIZER_DASHBOARD)
-                    }
-                )
+                // 2. EXPLORE
+                BottomNavItem.Explore.route -> {
+                    val viewModel = remember { AppModule.provideExploreViewModel() }
+                    ExploreScreen(
+                        viewModel = viewModel,
+                        onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
+                        onMapClick = { navController.navigate(Screen.EXPLORE_MAP) }
+                    )
+                }
 
+                // 3. MY EVENTS
+                BottomNavItem.MyEvents.route -> {
+                    MyEvents(
+                        userId = currentUserId,
+                        onEventClick = { ticketId ->
+                            // Clicar aqui abre o QR Code do bilhete
+                            navController.navigate(Screen.ticketDetail(ticketId, "My Ticket"))
+                        }
+                    )
+                }
+
+                // 4. PROFILE
+                BottomNavItem.Profile.route -> {
+                    ProfileScreen(
+                        onLogoutClick = {
+                            try {
+                                FirebaseAuth.getInstance().signOut()
+                            } catch (e: Exception) { }
+
+                            navController.navigate(Screen.AUTH_ROOT) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onOrganizerClick = {
+                            navController.navigate(Screen.ORGANIZER_DASHBOARD)
+                        },
+                        onEditProfileClick = {
+                            navController.navigate(Screen.EDIT_PROFILE)
+                        }
+                    )
+                }
+
+                // 5. ELSE (Obrigatório em Kotlin quando a variável é String)
+                else -> {
+                    // Fallback: mostrar Home ou nada
+                    HomeScreenContent(
+                        onEventClick = { navController.navigate(Screen.eventDetail(it)) },
+                        onSeeAllClick = { currentRoute = BottomNavItem.Explore.route }
+                    )
+                }
             }
         }
     }
