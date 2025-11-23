@@ -9,6 +9,7 @@ import dev.gitlive.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
+import com.example.eventify.model.TicketValidationResult
 import kotlinx.serialization.InternalSerializationApi
 
 class EventRepositoryImpl(
@@ -222,6 +223,30 @@ class EventRepositoryImpl(
         } catch (e: Exception) {
             println("Erro fatal ao buscar tickets: ${e.message}")
             emptyList()
+        }
+    }
+    override suspend fun validateTicket(ticketId: String): TicketValidationResult {
+        return try {
+            val docRef = ticketsCollection.document(ticketId)
+            val snapshot = docRef.get()
+
+            if (!snapshot.exists) {
+                return TicketValidationResult.INVALID
+            }
+
+            // Verifica se o campo 'isValid' é verdadeiro
+            val isValid = snapshot.get<Boolean>("isValid")
+
+            if (isValid) {
+                // SUCESSO: Marca como usado na BD para não entrar 2x
+                docRef.update("isValid" to false)
+                TicketValidationResult.VALID
+            } else {
+                TicketValidationResult.ALREADY_USED
+            }
+        } catch (e: Exception) {
+            println("Erro a validar: ${e.message}")
+            TicketValidationResult.ERROR
         }
     }
 }

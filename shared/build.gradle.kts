@@ -19,19 +19,21 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                // --- KOTLIN & CORE ---
                 implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-                implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-                // Firebase KMP (GitLive)
+
+                // --- FIREBASE KMP (GitLive) - Versão 2.1.0 ---
                 implementation("dev.gitlive:firebase-app:2.1.0")
                 implementation("dev.gitlive:firebase-auth:2.1.0")
                 implementation("dev.gitlive:firebase-firestore:2.1.0")
                 implementation("dev.gitlive:firebase-storage:2.1.0")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3") // versão recente
-                implementation("dev.gitlive:firebase-firestore:1.12.0")
-                implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0") // Versão pode variar
-                // SQLDelight runtime comum
+
+                // --- LIFECYCLE & MVVM (JetBrains) ---
+                implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+
+                // --- DATABASE (Runtime) ---
                 implementation("app.cash.sqldelight:runtime:2.0.1")
                 implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
             }
@@ -39,7 +41,26 @@ kotlin {
 
         val androidMain by getting {
             dependencies {
+                // --- CÂMARA (CameraX) - EXCLUSIVO ANDROID ---
+                implementation("androidx.camera:camera-core:1.3.0")
+                implementation("androidx.camera:camera-camera2:1.3.0")
+                implementation("androidx.camera:camera-lifecycle:1.3.0")
+                implementation("androidx.camera:camera-view:1.3.0")
+
+                // --- ML KIT (QR Code) - EXCLUSIVO ANDROID ---
+                implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+                // --- PERMISSÕES - EXCLUSIVO ANDROID ---
+                implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+                // --- DATABASE DRIVER ---
                 implementation("app.cash.sqldelight:android-driver:2.0.1")
+
+                // --- OUTROS ANDROID ---
+                implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+                // Correção para conflitos de dependências (ListenableFuture)
+                implementation("com.google.guava:guava:31.1-android")
             }
         }
 

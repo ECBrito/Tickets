@@ -15,3 +15,4 @@ data class Ticket(
     val purchaseDate: Long = 0,
     val isValid: Boolean = true
 )
+

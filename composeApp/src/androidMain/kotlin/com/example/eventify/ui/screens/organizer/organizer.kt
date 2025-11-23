@@ -9,11 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Paid
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -32,29 +29,31 @@ import com.example.eventify.model.Event
 import com.example.eventify.ui.theme.EventifyTheme
 import com.example.eventify.viewmodels.OrganizerViewModel
 
-// --- Theme Colors from Image ---
+// --- Cores do Tema (Baseado na Imagem) ---
 private val BgDark = Color(0xFF0B0A12)
 private val CardBg = Color(0xFF151520)
-private val AccentPurple = Color(0xFF7B61FF) // Button Purple
+private val AccentPurple = Color(0xFF7B61FF)
 private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
 private val GreenGrowth = Color(0xFF00E096)
+private val BadgeYellow = Color(0xFFFFD700) // Para status "Draft" ou "Live"
 
 @Composable
 fun OrganizerDashboardScreen(
     onCreateEventClick: () -> Unit,
-    onEventClick: (String) -> Unit
+    onEventClick: (String) -> Unit,
+    onScanClick: () -> Unit
 ) {
     val viewModel = remember { AppModule.provideOrganizerViewModel() }
     val events by viewModel.events.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Mock Stats Data (In a real app, this comes from ViewModel)
+    // Mock Data para Estatísticas (Numa app real viria do ViewModel)
     val totalRevenue = "$12,450"
     val revenueGrowth = "+5.2%"
     val registrations = "8,921"
     val regGrowth = "+12.1%"
-    val upcomingCount = events.size.toString() // Dynamic
+    val upcomingCount = events.size.toString()
     val hostedCount = "23"
 
     Scaffold(
@@ -65,7 +64,7 @@ fun OrganizerDashboardScreen(
                 containerColor = AccentPurple,
                 contentColor = TextWhite,
                 shape = CircleShape,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(64.dp) // FAB um pouco maior
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Create Event", modifier = Modifier.size(32.dp))
             }
@@ -78,33 +77,30 @@ fun OrganizerDashboardScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // 1. Header
+            // 1. Header (Welcome + Scan Button)
             item {
                 Spacer(modifier = Modifier.height(20.dp))
-                OrganizerHeader()
+                OrganizerHeader(onScanClick = onScanClick)
             }
 
-            // 2. Stats Grid
+            // 2. Stats Grid (4 Cards)
             item {
                 StatsGrid(
-                    revenue = totalRevenue,
-                    revGrowth = revenueGrowth,
-                    registrations = registrations,
-                    regGrowth = regGrowth,
-                    upcoming = upcomingCount,
-                    hosted = hostedCount
+                    revenue = totalRevenue, revGrowth = revenueGrowth,
+                    registrations = registrations, regGrowth = regGrowth,
+                    upcoming = upcomingCount, hosted = hostedCount
                 )
             }
 
-            // 3. Highlight Card (Next Big Event)
+            // 3. Highlight Card (Próximo Evento - Gradiente)
             if (events.isNotEmpty()) {
                 item {
-                    // Pick the first event as "Next Up" for demo purposes
+                    // Pega o primeiro evento como destaque
                     HighlightEventCard(event = events.first(), onClick = { onEventClick(events.first().id) })
                 }
             }
 
-            // 4. Recent Events Header
+            // 4. Lista Recente (Título)
             item {
                 Text(
                     text = "Recent Events",
@@ -114,7 +110,7 @@ fun OrganizerDashboardScreen(
                 )
             }
 
-            // 5. Recent Events List
+            // 5. Lista Recente (Items)
             if (isLoading) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -122,15 +118,14 @@ fun OrganizerDashboardScreen(
                     }
                 }
             } else {
-                // Skip the first one if shown in Highlight, or show all
-                val recentEvents = if (events.isNotEmpty()) events.drop(1) else emptyList()
+                val recentList = if (events.isNotEmpty()) events.drop(1) else emptyList()
 
-                if (recentEvents.isEmpty() && events.size <= 1) {
+                if (recentList.isEmpty() && events.size <= 1) {
                     item { Text("No recent activity.", color = TextGray) }
                 } else {
-                    items(recentEvents) { event ->
+                    items(recentList) { event ->
                         DashboardEventItem(event = event, onClick = { onEventClick(event.id) })
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
@@ -140,32 +135,47 @@ fun OrganizerDashboardScreen(
     }
 }
 
-// --- COMPONENTES ---
+// --- COMPONENTES VISUAIS ---
 
 @Composable
-fun OrganizerHeader() {
+fun OrganizerHeader(onScanClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
-            Text("Dashboard", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
+            Text("Dashboard", style = MaterialTheme.typography.titleMedium, color = TextGray, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
             Text("Welcome back, Alex!", style = MaterialTheme.typography.headlineMedium, color = TextWhite, fontWeight = FontWeight.Bold)
         }
-        Surface(
-            shape = CircleShape,
-            modifier = Modifier.size(48.dp),
-            color = CardBg
-        ) {
-            // Mock Avatar
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Profile",
-                tint = TextGray,
-                modifier = Modifier.padding(8.dp)
-            )
+
+        Row {
+            // Botão de Scan no Topo (Muito útil para acesso rápido)
+            IconButton(
+                onClick = onScanClick,
+                modifier = Modifier
+                    .background(CardBg, CircleShape)
+                    .padding(4.dp)
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan", tint = AccentPurple)
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Avatar
+            Surface(
+                shape = CircleShape,
+                modifier = Modifier.size(48.dp),
+                color = CardBg
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = TextGray,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
         }
     }
 }
@@ -177,12 +187,12 @@ fun StatsGrid(
     upcoming: String, hosted: String
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Row 1
+        // Linha 1
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             StatCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Paid,
-                iconColor = Color(0xFF7B61FF), // Purple icon
+                iconColor = AccentPurple,
                 title = "Total Revenue",
                 value = revenue,
                 subValue = "$revGrowth this month",
@@ -191,14 +201,14 @@ fun StatsGrid(
             StatCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Group,
-                iconColor = Color(0xFF7B61FF),
+                iconColor = AccentPurple,
                 title = "Registrations",
                 value = registrations,
                 subValue = "$regGrowth this month",
                 subValueColor = GreenGrowth
             )
         }
-        // Row 2
+        // Linha 2
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             StatCardSmall(
                 modifier = Modifier.weight(1f),
@@ -240,7 +250,7 @@ fun StatCard(
             Spacer(modifier = Modifier.height(12.dp))
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TextWhite)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(subValue, style = MaterialTheme.typography.bodySmall, color = subValueColor, fontWeight = FontWeight.Bold)
+            Text(subValue, style = MaterialTheme.typography.labelSmall, color = subValueColor, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -271,46 +281,40 @@ fun StatCardSmall(
 
 @Composable
 fun HighlightEventCard(event: Event, onClick: () -> Unit) {
-    // Gradient Background imitating the image
-    val gradient = Brush.horizontalGradient(
+    // Gradiente Roxo/Azul como na imagem
+    val gradient = Brush.linearGradient(
         colors = listOf(
-            Color(0xFF8E2DE2), // Purple
-            Color(0xFF4A00E0)  // Dark Blue
+            Color(0xFF8E2DE2), // Roxo Claro
+            Color(0xFF4A00E0)  // Azul Escuro
         )
     )
 
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent), // Transparent to show Box gradient
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         modifier = Modifier.fillMaxWidth()
     ) {
         Box(
             modifier = Modifier
                 .background(gradient)
-                .padding(20.dp)
+                .padding(24.dp)
         ) {
             Column {
-                // Placeholder image area or gradient area
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp) // Top abstract area
-                )
+                // Área superior vazia (para dar "ar" ou por imagem)
+                Spacer(modifier = Modifier.height(60.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Next Up: ${event.dateTime.take(10)}", color = AccentPurple, style = MaterialTheme.typography.labelLarge)
+                Text("Next Up: ${event.dateTime.take(10)}", color = AccentPurple.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(event.title, style = MaterialTheme.typography.headlineSmall, color = TextWhite, fontWeight = FontWeight.Bold)
+                Text(event.title, style = MaterialTheme.typography.headlineMedium, color = TextWhite, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     event.description.take(80) + "...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextWhite.copy(alpha = 0.7f)
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -319,7 +323,7 @@ fun HighlightEventCard(event: Event, onClick: () -> Unit) {
                 ) {
                     Column {
                         Text("1,200/2,000", color = TextWhite, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Registered", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                        Text("Registered", color = TextWhite.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
                     }
 
                     Button(
@@ -347,7 +351,7 @@ fun DashboardEventItem(event: Event, onClick: () -> Unit) {
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Event Image
+            // Imagem Pequena
             AsyncImage(
                 model = event.imageUrl,
                 contentDescription = null,
@@ -364,28 +368,38 @@ fun DashboardEventItem(event: Event, onClick: () -> Unit) {
                 Text(event.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextWhite, maxLines = 1)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(event.dateTime.take(10), style = MaterialTheme.typography.bodySmall, color = TextGray)
+
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Status Pill (Mock logic)
-                val status = "Live" // Mock status
-                val statusColor = Color(0xFF00E096) // Green
+                // Status Pill (Simulado)
+                val statusText = "Live"
+                val statusColor = GreenGrowth
 
                 Surface(
-                    color = statusColor.copy(alpha = 0.2f),
+                    color = statusColor.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = status,
+                        text = statusText,
                         color = statusColor,
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
             }
 
-            IconButton(onClick = { /* Menu action */ }) {
+            IconButton(onClick = { /* Menu */ }) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = TextGray)
             }
         }
+    }
+}
+
+@Preview
+@Composable
+fun OrganizerDashboardPreview() {
+    EventifyTheme(darkTheme = true) {
+        // Preview
     }
 }
