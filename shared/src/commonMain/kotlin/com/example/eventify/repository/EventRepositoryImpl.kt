@@ -5,6 +5,7 @@ import com.example.eventify.model.Ticket
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.where
 import dev.gitlive.firebase.storage.Data
+import com.example.eventify.model.Comment
 import dev.gitlive.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -247,6 +248,30 @@ class EventRepositoryImpl(
         } catch (e: Exception) {
             println("Erro a validar: ${e.message}")
             TicketValidationResult.ERROR
+        }
+    }
+    // --- COMENTÁRIOS ---
+
+    override fun getComments(eventId: String): Flow<List<Comment>> {
+        return eventsCollection.document(eventId).collection("comments")
+            .snapshots
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    try {
+                        doc.data<Comment>()
+                    } catch (e: Exception) { null }
+                }.sortedByDescending { it.timestamp } // Mais recentes primeiro
+            }
+    }
+
+    override suspend fun addComment(eventId: String, comment: Comment): Boolean {
+        return try {
+            val commentsRef = eventsCollection.document(eventId).collection("comments")
+            commentsRef.add(comment)
+            true
+        } catch (e: Exception) {
+            println("Erro ao comentar: ${e.message}")
+            false
         }
     }
 }

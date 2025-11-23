@@ -3,6 +3,7 @@ package com.example.eventify.repository
 import com.example.eventify.model.Event
 import com.example.eventify.model.Ticket
 import kotlinx.coroutines.flow.Flow
+import com.example.eventify.model.Comment
 import com.example.eventify.model.TicketValidationResult
 import kotlinx.serialization.InternalSerializationApi
 
@@ -20,4 +21,7 @@ interface EventRepository {
     suspend fun getUserTickets(userId: String): List<Ticket>
 
     suspend fun validateTicket(ticketId: String): TicketValidationResult
+
+    fun getComments(eventId: String): Flow<List<Comment>>
+    suspend fun addComment(eventId: String, comment: Comment): Boolean
 }

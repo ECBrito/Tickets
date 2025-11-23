@@ -4,15 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items // Importante para lista de comentários
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,8 +33,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
+import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
-import com.example.eventify.ui.Screen // <--- IMPORTANTE: Adicionado para aceder às rotas
+import com.example.eventify.ui.Screen
 import kotlinx.datetime.LocalDateTime
 
 // Cores específicas do design
@@ -49,7 +54,11 @@ fun EventDetailScreen(
 ) {
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
     val event by viewModel.event.collectAsState()
+    val comments by viewModel.comments.collectAsState() // <--- Estado dos Comentários
     val isLoading by viewModel.isLoading.collectAsState()
+
+    // Estado da Tab (0=Details, 1=Attendees, 2=Comments)
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
         containerColor = BgDark,
@@ -58,12 +67,9 @@ fun EventDetailScreen(
                 BottomActionSection(
                     isRegistered = viewModel.isRegistered,
                     onRsvpClick = {
-                        // LÓGICA CORRIGIDA AQUI:
                         if (viewModel.isRegistered) {
-                            // Se já está inscrito, cancela a inscrição
                             viewModel.toggleRsvp()
                         } else {
-                            // Se NÃO está inscrito, vai para o ecrã de COMPRA
                             navController.navigate(Screen.purchase(currentEvent.id))
                         }
                     }
@@ -76,48 +82,167 @@ fun EventDetailScreen(
                 CircularProgressIndicator(color = AccentPurple)
             }
         } else {
+            // Estrutura principal com Scroll Global
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = paddingValues.calculateBottomPadding())
-                    .verticalScroll(rememberScrollState())
             ) {
-                // 1. Header
-                HeaderSection(
-                    event = event!!,
-                    onBackClick = { navController.popBackStack() }
-                )
+                // Usamos LazyColumn aqui para permitir que a lista de comentários (se for grande)
+                // faça parte do scroll natural da página
+                LazyColumn(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // 1. Header
+                    item {
+                        HeaderSection(
+                            event = event!!,
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
 
-                // 2. Info
-                InfoSection(event = event!!)
+                    // 2. Info
+                    item {
+                        InfoSection(event = event!!)
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    // 3. Tabs
+                    item {
+                        TabsSection(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
 
-                // 3. Tabs
-                TabsSection()
+                    // 4. CONTEÚDO DA TAB (DINÂMICO)
+                    // Em vez de if/else, usamos 'item' ou 'items' dependendo da tab
+                    when (selectedTab) {
+                        0 -> { // Details Tab
+                            item {
+                                Column {
+                                    AboutSection(description = event!!.description)
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    LocationMapSection()
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    TagsSection(category = event!!.category, price = event!!.price)
+                                    Spacer(modifier = Modifier.height(40.dp))
+                                }
+                            }
+                        }
+                        1 -> { // Attendees Tab (Placeholder)
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                    Text("Attendees list coming soon...", color = TextGray)
+                                }
+                            }
+                        }
+                        2 -> { // Comments Tab
+                            // Secção de Input
+                            item {
+                                CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                            // Lista de Comentários (Renderiza cada item individualmente no LazyColumn pai)
+                            if (comments.isEmpty()) {
+                                item {
+                                    Text(
+                                        "No comments yet. Be the first!",
+                                        color = TextGray,
+                                        modifier = Modifier.padding(horizontal = 20.dp)
+                                    )
+                                }
+                            } else {
+                                items(comments) { comment ->
+                                    CommentItem(comment)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                            }
 
-                // 4. About
-                AboutSection(description = event!!.description)
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 5. Location
-                LocationMapSection()
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 6. Tags
-                TagsSection(category = event!!.category, price = event!!.price)
-
-                Spacer(modifier = Modifier.height(40.dp))
+                            item { Spacer(modifier = Modifier.height(40.dp)) }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-// --- SEÇÕES DA UI ---
+// --- NOVOS COMPONENTES DE COMENTÁRIOS ---
+
+@Composable
+fun CommentInputSection(onSendComment: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text("Write a comment...", color = TextGray) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentPurple,
+                unfocusedBorderColor = TextGray,
+                focusedTextColor = TextWhite,
+                unfocusedTextColor = TextWhite,
+                cursorColor = AccentPurple
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        IconButton(
+            onClick = {
+                if (text.isNotBlank()) {
+                    onSendComment(text)
+                    text = ""
+                }
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = AccentPurple)
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = AccentPurpleDark)
+        }
+    }
+}
+
+@Composable
+fun CommentItem(comment: Comment) {
+    Row(
+        // CORREÇÃO: Em vez de crossAxisAlignment, usamos verticalAlignment
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.padding(horizontal = 20.dp)
+    ) {
+        // Avatar
+        Surface(
+            shape = CircleShape,
+            color = ChipBg,
+            modifier = Modifier.size(40.dp)
+        ) {
+            if (comment.userPhotoUrl != null) {
+                AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop)
+            } else {
+                Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.padding(8.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+// --- SEÇÕES EXISTENTES (Mantidas) ---
 
 @Composable
 fun HeaderSection(event: Event, onBackClick: () -> Unit) {
@@ -179,7 +304,6 @@ fun HeaderSection(event: Event, onBackClick: () -> Unit) {
 @Composable
 fun InfoSection(event: Event) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        // Data
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Default.CalendarMonth,
@@ -197,7 +321,6 @@ fun InfoSection(event: Event) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Localização
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Default.LocationOn,
@@ -215,7 +338,6 @@ fun InfoSection(event: Event) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Organizador Chip
         Row(
             modifier = Modifier
                 .border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50))
@@ -242,9 +364,8 @@ fun InfoSection(event: Event) {
 }
 
 @Composable
-fun TabsSection() {
+fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     val tabs = listOf("Details", "Attendees", "Comments")
-    var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -254,7 +375,7 @@ fun TabsSection() {
             tabs.forEachIndexed { index, title ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { selectedTab = index }
+                    modifier = Modifier.clickable { onTabSelected(index) }
                 ) {
                     Text(
                         text = title,
@@ -306,7 +427,6 @@ fun LocationMapSection() {
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF2C2C3E))
         ) {
-            // Placeholder visual
             AsyncImage(
                 model = "https://maps.googleapis.com/maps/api/staticmap?center=Lisbon&zoom=13&size=600x300&maptype=roadmap&key=YOUR_KEY",
                 contentDescription = "Map Preview",
