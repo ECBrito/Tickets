@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class MyEventsViewModelKMM(
     private val repository: EventRepository,
@@ -17,40 +18,47 @@ class MyEventsViewModelKMM(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // 1. Lista de Eventos onde sou PARTICIPANTE
+    // Lista de Bilhetes (Mapeados como Eventos para a UI)
     private val _registeredEvents = MutableStateFlow<List<Event>>(emptyList())
     val registeredEvents: StateFlow<List<Event>> = _registeredEvents.asStateFlow()
 
-    // 2. Lista de Eventos onde sou ORGANIZADOR
     private val _hostedEvents = MutableStateFlow<List<Event>>(emptyList())
     val hostedEvents: StateFlow<List<Event>> = _hostedEvents.asStateFlow()
 
     init {
-        observeMyEvents()
+        loadMyEvents()
     }
 
-    private fun observeMyEvents() {
+    @OptIn(InternalSerializationApi::class)
+    private fun loadMyEvents() {
         viewModelScope.launch {
             _isLoading.value = true
 
-            // Escutamos todos os eventos e filtramos localmente
-            repository.events.collect { allEvents ->
+            // 1. CORREÇÃO: Buscar os TICKETS em vez de filtrar eventos
+            val myTickets = repository.getUserTickets(userId)
 
-                // Filtra eventos onde estou inscrito
-                val registered = allEvents.filter { event ->
-                    event.registeredUserIds.contains(userId)
-                }.map { it.copy(isRegistered = true) }
+            // 2. Transformar Tickets em "Eventos Visuais" para a UI
+            val eventsFromTickets = myTickets.map { ticket ->
+                Event(
+                    // TRUQUE IMPORTANTE:
+                    // Usamos o ID do TICKET aqui para que, ao clicar, saibamos qual bilhete abrir
+                    id = ticket.id,
 
-                _registeredEvents.value = registered
-
-                // Filtra eventos que EU criei (Hosted)
-                // NOTA: Como o nosso modelo Event atual ainda não tem "creatorId",
-                // vou deixar esta lista vazia ou igual à registered por enquanto.
-                // Futuramente deves adicionar 'val creatorId: String' ao modelo Event.
-                _hostedEvents.value = emptyList() // TODO: Filtrar por event.creatorId == userId
-
-                _isLoading.value = false
+                    // O resto dos dados vem do snapshot que guardámos no bilhete
+                    title = ticket.eventTitle,
+                    location = ticket.eventLocation,
+                    imageUrl = ticket.eventImage,
+                    dateTime = ticket.eventDate,
+                    isRegistered = true
+                )
             }
+
+            _registeredEvents.value = eventsFromTickets
+
+            // Para Hosted (Organizador), mantemos a lógica ou deixamos vazio por agora
+            _hostedEvents.value = emptyList()
+
+            _isLoading.value = false
         }
     }
 }

@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,12 +25,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.EventCategory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Locale
 
@@ -45,21 +45,21 @@ fun CreateEventScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // --- ESTADOS DO FORMULÁRIO ---
+    // Estados do Formulário
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Categoria (Dropdown)
+    // IMAGEM: Guardamos o URI para mostrar no ecrã, e os BYTES para enviar
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) } // <--- NOVO ESTADO
+
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf(EventCategory.OTHER) }
 
-    // Datas (Start & End)
-    // Guardamos objetos Calendar para manipulação e Strings para display
+    // Datas
     val startCalendar = remember { Calendar.getInstance() }
     val endCalendar = remember { Calendar.getInstance().apply { add(Calendar.HOUR, 2) } }
-
     var startDateDisplay by remember { mutableStateOf("") }
     var endDateDisplay by remember { mutableStateOf("") }
 
@@ -68,9 +68,21 @@ fun CreateEventScreen(
     // Launcher da Galeria
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri -> selectedImageUri = uri }
+    ) { uri ->
+        if (uri != null) {
+            selectedImageUri = uri
 
-    // Função auxiliar para formatar data para o formato ISO-8601 (Necessário para o EventCard não crashar)
+            // CORREÇÃO CRÍTICA: Ler os bytes IMEDIATAMENTE enquanto temos permissão
+            scope.launch(Dispatchers.IO) {
+                val bytes = uriToByteArray(context, uri)
+                withContext(Dispatchers.Main) {
+                    selectedImageBytes = bytes
+                }
+            }
+        }
+    }
+
+    // Formatação de datas
     fun formatToIso(calendar: Calendar): String {
         val year = calendar.get(Calendar.YEAR)
         val month = (calendar.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
@@ -80,7 +92,6 @@ fun CreateEventScreen(
         return "${year}-${month}-${day}T${hour}:${minute}"
     }
 
-    // Função auxiliar para mostrar data bonita na UI
     fun formatDisplay(calendar: Calendar): String {
         val day = calendar.get(Calendar.DAY_OF_MONTH)
         val month = calendar.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.getDefault())
@@ -89,7 +100,6 @@ fun CreateEventScreen(
         return "$day $month, $hour:$minute"
     }
 
-    // Inicializar displays
     LaunchedEffect(Unit) {
         startDateDisplay = formatDisplay(startCalendar)
         endDateDisplay = formatDisplay(endCalendar)
@@ -111,12 +121,13 @@ fun CreateEventScreen(
             Button(
                 onClick = {
                     scope.launch {
+                        // Agora usamos os bytes que já lemos antes
                         viewModel.createEvent(
                             title = title,
                             description = description,
                             location = location,
-                            imageUrl = selectedImageUri?.toString(),
-                            // Enviamos a Data de INÍCIO formatada corretamente
+                            imageUrl = null,
+                            imageBytes = selectedImageBytes, // <--- USA A VARIÁVEL GUARDADA
                             dateTime = formatToIso(startCalendar),
                             category = selectedCategory.name,
                             onSuccess = { onPublishClick() },
@@ -148,7 +159,7 @@ fun CreateEventScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. SELEÇÃO DE IMAGEM
+            // 1. Imagem
             item {
                 Box(
                     modifier = Modifier
@@ -180,7 +191,7 @@ fun CreateEventScreen(
                 }
             }
 
-            // 2. TÍTULO E DESCRIÇÃO
+            // 2. Campos de Texto
             item {
                 OutlinedTextField(
                     value = title,
@@ -200,7 +211,7 @@ fun CreateEventScreen(
                 )
             }
 
-            // 3. CATEGORIA (Dropdown)
+            // 3. Categoria
             item {
                 ExposedDropdownMenuBox(
                     expanded = expandedCategory,
@@ -232,10 +243,9 @@ fun CreateEventScreen(
                 }
             }
 
-            // 4. DATAS (Start & End Pickers)
+            // 4. Datas
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // START DATE
                     DateTimePickerField(
                         label = "Starts",
                         value = startDateDisplay,
@@ -244,8 +254,6 @@ fun CreateEventScreen(
                         calendar = startCalendar,
                         onDateSelected = { startDateDisplay = formatDisplay(startCalendar) }
                     )
-
-                    // END DATE
                     DateTimePickerField(
                         label = "Ends",
                         value = endDateDisplay,
@@ -257,12 +265,12 @@ fun CreateEventScreen(
                 }
             }
 
-            // 5. LOCALIZAÇÃO (Mantido como texto por enquanto)
+            // 5. Localização
             item {
                 OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("Location") }, // "We will change too but not yet"
+                    label = { Text("Location") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -271,7 +279,17 @@ fun CreateEventScreen(
     }
 }
 
-// --- Helper Component para Date+Time Picker ---
+// --- FUNÇÃO MÁGICA: Converte Uri do Android para ByteArray ---
+fun uriToByteArray(context: Context, uri: Uri): ByteArray? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        inputStream?.use { it.readBytes() }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
 @Composable
 fun DateTimePickerField(
     label: String,
@@ -290,14 +308,13 @@ fun DateTimePickerField(
         },
         calendar.get(Calendar.HOUR_OF_DAY),
         calendar.get(Calendar.MINUTE),
-        true // 24h format
+        true
     )
 
     val datePickerDialog = DatePickerDialog(
         context,
         { _, year, month, day ->
             calendar.set(year, month, day)
-            // Depois de escolher a data, abre o relógio automaticamente
             timePickerDialog.show()
         },
         calendar.get(Calendar.YEAR),
@@ -312,7 +329,7 @@ fun DateTimePickerField(
         label = { Text(label) },
         trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
         modifier = modifier.clickable { datePickerDialog.show() },
-        enabled = false, // Desabilita input manual, mas o clickable acima funciona no Box pai se usarmos Box, mas aqui usamos enabled=false e clickable no modifier
+        enabled = false,
         colors = OutlinedTextFieldDefaults.colors(
             disabledTextColor = MaterialTheme.colorScheme.onSurface,
             disabledBorderColor = MaterialTheme.colorScheme.outline,

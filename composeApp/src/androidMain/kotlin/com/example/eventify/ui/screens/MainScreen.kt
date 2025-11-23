@@ -53,7 +53,12 @@ fun MainScreen(
                 }
                 BottomNavItem.MyEvents.route -> MyEvents(
                     userId = currentUserId,
-                    onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) }
+                    onEventClick = { ticketId ->
+                        // --- CORREÇÃO CRÍTICA AQUI ---
+                        // Antes estava: navController.navigate(Screen.eventDetail(ticketId))  <-- ERRADO
+                        // Agora vamos para o ecrã do BILHETE:
+                        navController.navigate(Screen.ticketDetail(ticketId, "O Meu Bilhete"))
+                    }
                 )
                 BottomNavItem.Profile.route -> ProfileScreen(
                     onLogoutClick = {

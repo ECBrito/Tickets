@@ -29,6 +29,7 @@ kotlin {
             implementation("dev.icerock.moko:mvvm-core:0.16.1")
             implementation("dev.icerock.moko:mvvm-flow:0.16.1")
             implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+            implementation("com.google.zxing:core:3.5.2")
             // UI Libs
             implementation("androidx.compose.material:material-icons-extended:1.6.0")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")

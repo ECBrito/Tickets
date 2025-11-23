@@ -1,18 +1,19 @@
 package com.example.eventify.viewmodels
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope // Import crucial
+import androidx.lifecycle.viewModelScope
 import com.example.eventify.model.Event
-import com.example.eventify.repository.EventRepository // Interface correta
+import com.example.eventify.repository.EventRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 
 class CreateEventViewModel(
     private val repository: EventRepository,
     private val organizerId: String
-) : ViewModel() { // 1. Herança correta
+) : ViewModel() {
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
@@ -21,45 +22,63 @@ class CreateEventViewModel(
         title: String,
         description: String,
         location: String,
-        imageUrl: String?,
+        imageUrl: String?, // URL local (apenas para compatibilidade, será ignorado se houver bytes)
+        imageBytes: ByteArray?, // <--- A IMAGEM REAL (BYTES)
         dateTime: String,
         category: String,
         onSuccess: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
-        // Validação básica
         if (title.isBlank() || location.isBlank()) {
             onError?.invoke("Título e Localização são obrigatórios")
             return
         }
 
-        val event = Event(
-            id = "", // O Firebase gera isto automaticamente
-            title = title,
-            description = description,
-            location = location,
-            imageUrl = imageUrl ?: "",
-            dateTime = dateTime,
-            category = category,
-            // Adiciona logo o criador à lista de inscritos
-            registeredUserIds = listOf(organizerId),
-            isRegistered = true
-        )
-
         _loading.value = true
 
         viewModelScope.launch {
             try {
-                // 2. Verifica o resultado booleano do repositório
+                var finalImageUrl = ""
+
+                // --- PASSO 1: UPLOAD DA IMAGEM (Se existir) ---
+                if (imageBytes != null) {
+                    // Gera um nome único baseado no tempo atual
+                    val fileName = "${Clock.System.now().toEpochMilliseconds()}.jpg"
+
+                    // Faz o upload e recebe o link público (https://...)
+                    val uploadedUrl = repository.uploadEventImage(imageBytes, fileName)
+
+                    if (uploadedUrl != null) {
+                        finalImageUrl = uploadedUrl
+                    } else {
+                        println("Aviso: Upload da imagem falhou, criando evento sem imagem.")
+                    }
+                }
+
+                // --- PASSO 2: CRIAR O OBJETO EVENTO ---
+                val event = Event(
+                    id = "", // O Firebase gera o ID
+                    title = title,
+                    description = description,
+                    location = location,
+                    imageUrl = finalImageUrl, // Usa o link da nuvem
+                    dateTime = dateTime,
+                    category = category,
+                    registeredUserIds = listOf(organizerId), // O criador vai automaticamente
+                    isRegistered = true
+                )
+
+                // --- PASSO 3: GRAVAR NA BASE DE DADOS ---
                 val success = repository.addEvent(event)
 
                 if (success) {
                     onSuccess?.invoke()
                 } else {
-                    onError?.invoke("Falha ao criar evento. Tente novamente.")
+                    onError?.invoke("Falha ao gravar evento na base de dados.")
                 }
+
             } catch (e: Exception) {
-                onError?.invoke(e.message ?: "Erro desconhecido")
+                onError?.invoke(e.message ?: "Erro desconhecido durante a criação.")
             } finally {
                 _loading.value = false
             }
