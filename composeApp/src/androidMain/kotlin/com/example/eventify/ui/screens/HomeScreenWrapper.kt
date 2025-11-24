@@ -1,10 +1,13 @@
 package com.example.eventify.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Notifications
@@ -19,15 +22,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
-import com.example.eventify.ui.components.EventCard // O teu componente rico
-import com.example.eventify.ui.components.IconButtonWithBadge // O teu componente rico
+import com.example.eventify.model.EventCategory // <--- Importante
+import com.example.eventify.ui.components.EventCard
+import com.example.eventify.ui.components.IconButtonWithBadge
 
-// =====================================================================
-// TELA HOME (Conteúdo)
-// =====================================================================
+// Cores
+private val AccentPurple = Color(0xFF7B61FF)
+private val ChipBg = Color(0xFF1E1E2C)
 
 @Composable
 fun HomeScreenContent(
@@ -37,12 +42,11 @@ fun HomeScreenContent(
     onNotificationsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
-    // 1. Injeção do ViewModel via KMM
     val viewModel = remember { AppModule.provideHomeViewModel() }
 
-    // 2. Estados
     val featuredEvents by viewModel.featuredEvents.collectAsState()
     val upcomingEvents by viewModel.upcomingEvents.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState() // <--- Estado da Categoria
     val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
@@ -53,10 +57,9 @@ fun HomeScreenContent(
                 onProfileClick = onProfileClick
             )
         },
-        containerColor = Color(0xFF0B0A12) // Fundo escuro global
+        containerColor = Color(0xFF0B0A12)
     ) { innerPadding ->
 
-        // Conteúdo com Scroll
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -64,17 +67,14 @@ fun HomeScreenContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // --- Seção Featured (Destaques) ---
+            // --- 1. Featured (Destaques) ---
             item {
                 SectionHeader("Featured This Week")
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (isLoading) {
-                    // Skeleton para o Carrossel
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(2) { FeatureCardPlaceholder() }
                     }
@@ -85,69 +85,122 @@ fun HomeScreenContent(
                             onEventClick = onEventClick
                         )
                     } else {
-                        Text("No featured events right now.", color = Color.Gray)
+                        Text("No featured events.", color = Color.Gray)
                     }
                 }
             }
 
-            // --- Seção Upcoming (Próximos) ---
+            // --- 2. CATEGORIAS (NOVO) ---
+            item {
+                CategoryFilterSection(
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { viewModel.selectCategory(it) }
+                )
+            }
+
+            // --- 3. Upcoming (Próximos - Filtrado) ---
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SectionHeader("Upcoming Near You")
+                    SectionHeader("Upcoming Events")
                     TextButton(onClick = onSeeAllClick) {
-                        Text("See All", color = MaterialTheme.colorScheme.primary)
+                        Text("See All", color = AccentPurple)
                     }
                 }
             }
 
             if (isLoading) {
-                // Skeleton para a Lista Vertical
                 items(3) {
                     EventCardPlaceholder()
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             } else {
-                items(upcomingEvents) { event ->
-                    // USANDO O TEU COMPONENTE EventCard
-                    EventCard(
-                        event = event,
-                        onClick = onEventClick,
-                        // LIGAÇÃO AO VIEWMODEL PARA FAVORITOS:
-                        onSave = { viewModel.toggleSave(event.id) }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                if (upcomingEvents.isEmpty() && !isLoading) {
+                if (upcomingEvents.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "No upcoming events found.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray
-                            )
+                            Text("No events found for this category.", color = Color.Gray)
                         }
+                    }
+                } else {
+                    items(upcomingEvents) { event ->
+                        EventCard(
+                            event = event,
+                            onClick = onEventClick,
+                            onSave = { viewModel.toggleSave(event.id) }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(20.dp))
-            }
+            item { Spacer(modifier = Modifier.height(20.dp)) }
         }
     }
 }
 
-// =====================================================================
-// COMPONENTES LOCAIS (TopBar, Headers, FeatureCard)
-// =====================================================================
+// --- NOVO COMPONENTE: Filtros de Categoria ---
+@Composable
+fun CategoryFilterSection(
+    selectedCategory: EventCategory?,
+    onCategorySelected: (EventCategory?) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Opção "All"
+        item {
+            CategoryChip(
+                label = "All",
+                isSelected = selectedCategory == null,
+                onClick = { onCategorySelected(null) }
+            )
+        }
+
+        // Opções do Enum
+        items(EventCategory.entries) { category ->
+            CategoryChip(
+                label = category.name.lowercase().replaceFirstChar { it.titlecase() },
+                isSelected = selectedCategory == category,
+                onClick = { onCategorySelected(category) }
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (isSelected) AccentPurple else ChipBg,
+        shape = RoundedCornerShape(50), // Redondo
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .border(
+                width = 1.dp,
+                color = if (isSelected) Color.Transparent else Color.Gray.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(50)
+            )
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) Color.White else Color.Gray,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+        )
+    }
+}
+
+// --- OUTROS COMPONENTES (Mantidos) ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -157,156 +210,52 @@ fun HomeTopBar(
     onProfileClick: () -> Unit,
 ) {
     TopAppBar(
-        title = {
-            Text(
-                "Eventify",
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color(0xFF0B0A12) // Mesma cor do fundo
-        ),
+        title = { Text("Eventify", fontWeight = FontWeight.Bold, color = Color.White) },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0A12)),
         actions = {
-            IconButton(onClick = onSearchClick) {
-                Icon(Icons.Default.Search, contentDescription = "Search events", tint = Color.White)
-            }
-            // Usando o teu componente IconButtonWithBadge
-            IconButtonWithBadge(
-                icon = Icons.Default.Notifications,
-                badgeCount = 3, // Exemplo estático
-                onClick = onNotificationsClick,
-                contentDescription = "Notifications"
-            )
-            IconButton(onClick = onProfileClick) {
-                Icon(Icons.Default.AccountCircle, contentDescription = "Profile", tint = Color.White)
-            }
+            IconButton(onClick = onSearchClick) { Icon(Icons.Default.Search, null, tint = Color.White) }
+            IconButtonWithBadge(icon = Icons.Default.Notifications, badgeCount = 0, onClick = onNotificationsClick)
+            IconButton(onClick = onProfileClick) { Icon(Icons.Default.AccountCircle, null, tint = Color.White) }
         }
     )
 }
 
 @Composable
 fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        color = Color.White
-    )
+    Text(text = title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
 }
 
 @Composable
-fun FeaturedEventsCarousel(
-    events: List<Event>,
-    onEventClick: (String) -> Unit
-) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(end = 16.dp) // Espaço extra no fim do scroll
-    ) {
-        items(events) { event ->
-            FeatureCard(event = event, onClick = { onEventClick(event.id) })
-        }
+fun FeaturedEventsCarousel(events: List<Event>, onEventClick: (String) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(end = 16.dp)) {
+        items(events) { event -> FeatureCard(event, onClick = { onEventClick(event.id) }) }
     }
 }
 
 @Composable
-fun FeatureCard(
-    event: Event,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.width(280.dp), // Largura de destaque
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
-    ) {
+fun FeatureCard(event: Event, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.width(280.dp), shape = MaterialTheme.shapes.medium, colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
         Column {
-            AsyncImage(
-                model = event.imageUrl,
-                contentDescription = "Poster for ${event.title}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp)
-                    .clip(MaterialTheme.shapes.medium)
-            )
+            AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(160.dp).clip(MaterialTheme.shapes.medium))
             Column(Modifier.padding(16.dp)) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-
-                // Exibe a data (string simples vinda do KMM)
-                // Nota: Podes usar o formatDateTime aqui também se quiseres
-                Text(
-                    text = event.dateTime.take(10), // Mostra só a data (YYYY-MM-DD)
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
+                Text(event.dateTime.take(10), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             }
         }
     }
 }
-
-// =====================================================================
-// SKELETONS (Placeholders de Carregamento)
-// =====================================================================
 
 @Composable
 fun FeatureCardPlaceholder() {
-    Card(
-        modifier = Modifier.width(280.dp),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp)
-                    .background(Color.Gray.copy(alpha = 0.2f))
-            )
-            Column(Modifier.padding(16.dp)) {
-                Box(modifier = Modifier.fillMaxWidth(0.8f).height(24.dp).background(Color.Gray.copy(alpha = 0.2f)))
-                Spacer(Modifier.height(8.dp))
-                Box(modifier = Modifier.fillMaxWidth(0.5f).height(16.dp).background(Color.Gray.copy(alpha = 0.2f)))
-            }
-        }
+    Card(modifier = Modifier.width(280.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
+        Box(modifier = Modifier.fillMaxWidth().height(160.dp).background(Color.Gray.copy(alpha = 0.2f)))
     }
 }
 
 @Composable
 fun EventCardPlaceholder() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(Color.Gray.copy(alpha = 0.2f))
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxWidth(0.4f).height(16.dp).background(Color.Gray.copy(alpha = 0.2f)))
-                Box(modifier = Modifier.fillMaxWidth(0.8f).height(20.dp).background(Color.Gray.copy(alpha = 0.2f)))
-                Box(modifier = Modifier.fillMaxWidth(0.6f).height(16.dp).background(Color.Gray.copy(alpha = 0.2f)))
-            }
-        }
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
+        Box(modifier = Modifier.height(80.dp).background(Color.Gray.copy(alpha = 0.2f)))
     }
 }
