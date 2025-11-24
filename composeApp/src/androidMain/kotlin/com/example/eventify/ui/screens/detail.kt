@@ -1,11 +1,13 @@
 package com.example.eventify.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items // Importante para lista de comentários
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +57,7 @@ fun EventDetailScreen(
 ) {
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
     val event by viewModel.event.collectAsState()
-    val comments by viewModel.comments.collectAsState() // <--- Estado dos Comentários
+    val comments by viewModel.comments.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     // Estado da Tab (0=Details, 1=Attendees, 2=Comments)
@@ -82,14 +85,11 @@ fun EventDetailScreen(
                 CircularProgressIndicator(color = AccentPurple)
             }
         } else {
-            // Estrutura principal com Scroll Global
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = paddingValues.calculateBottomPadding())
             ) {
-                // Usamos LazyColumn aqui para permitir que a lista de comentários (se for grande)
-                // faça parte do scroll natural da página
                 LazyColumn(
                     modifier = Modifier.weight(1f)
                 ) {
@@ -113,22 +113,24 @@ fun EventDetailScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 4. CONTEÚDO DA TAB (DINÂMICO)
-                    // Em vez de if/else, usamos 'item' ou 'items' dependendo da tab
+                    // 4. CONTEÚDO DA TAB
                     when (selectedTab) {
                         0 -> { // Details Tab
                             item {
                                 Column {
                                     AboutSection(description = event!!.description)
                                     Spacer(modifier = Modifier.height(24.dp))
-                                    LocationMapSection()
+
+                                    // Passamos o nome do local para o componente do mapa
+                                    LocationMapSection(locationName = event!!.location)
+
                                     Spacer(modifier = Modifier.height(24.dp))
                                     TagsSection(category = event!!.category, price = event!!.price)
                                     Spacer(modifier = Modifier.height(40.dp))
                                 }
                             }
                         }
-                        1 -> { // Attendees Tab (Placeholder)
+                        1 -> { // Attendees Tab
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                                     Text("Attendees list coming soon...", color = TextGray)
@@ -136,20 +138,13 @@ fun EventDetailScreen(
                             }
                         }
                         2 -> { // Comments Tab
-                            // Secção de Input
                             item {
                                 CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
-
-                            // Lista de Comentários (Renderiza cada item individualmente no LazyColumn pai)
                             if (comments.isEmpty()) {
                                 item {
-                                    Text(
-                                        "No comments yet. Be the first!",
-                                        color = TextGray,
-                                        modifier = Modifier.padding(horizontal = 20.dp)
-                                    )
+                                    Text("No comments yet. Be the first!", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp))
                                 }
                             } else {
                                 items(comments) { comment ->
@@ -157,7 +152,6 @@ fun EventDetailScreen(
                                     Spacer(modifier = Modifier.height(16.dp))
                                 }
                             }
-
                             item { Spacer(modifier = Modifier.height(40.dp)) }
                         }
                     }
@@ -167,85 +161,12 @@ fun EventDetailScreen(
     }
 }
 
-// --- NOVOS COMPONENTES DE COMENTÁRIOS ---
-
-@Composable
-fun CommentInputSection(onSendComment: (String) -> Unit) {
-    var text by remember { mutableStateOf("") }
-
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            placeholder = { Text("Write a comment...", color = TextGray) },
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(24.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentPurple,
-                unfocusedBorderColor = TextGray,
-                focusedTextColor = TextWhite,
-                unfocusedTextColor = TextWhite,
-                cursorColor = AccentPurple
-            )
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        IconButton(
-            onClick = {
-                if (text.isNotBlank()) {
-                    onSendComment(text)
-                    text = ""
-                }
-            },
-            colors = IconButtonDefaults.iconButtonColors(containerColor = AccentPurple)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = AccentPurpleDark)
-        }
-    }
-}
-
-@Composable
-fun CommentItem(comment: Comment) {
-    Row(
-        // CORREÇÃO: Em vez de crossAxisAlignment, usamos verticalAlignment
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(horizontal = 20.dp)
-    ) {
-        // Avatar
-        Surface(
-            shape = CircleShape,
-            color = ChipBg,
-            modifier = Modifier.size(40.dp)
-        ) {
-            if (comment.userPhotoUrl != null) {
-                AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop)
-            } else {
-                Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.padding(8.dp))
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall)
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-// --- SEÇÕES EXISTENTES (Mantidas) ---
+// --- COMPONENTES COM INTENTS ---
 
 @Composable
 fun HeaderSection(event: Event, onBackClick: () -> Unit) {
+    val context = LocalContext.current // Necessário para iniciar Intents
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -281,8 +202,17 @@ fun HeaderSection(event: Event, onBackClick: () -> Unit) {
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextWhite)
             }
+
+            // --- BOTÃO DE PARTILHA (SHARE) ---
             IconButton(
-                onClick = { },
+                onClick = {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        putExtra(Intent.EXTRA_TEXT, "Hey! Check out this event: ${event.title} at ${event.location}. Join me on Eventify!")
+                        type = "text/plain"
+                    }
+                    val shareIntent = Intent.createChooser(sendIntent, "Share Event")
+                    context.startActivity(shareIntent)
+                },
                 colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
             ) {
                 Icon(Icons.Default.Share, contentDescription = "Share", tint = TextWhite)
@@ -300,6 +230,65 @@ fun HeaderSection(event: Event, onBackClick: () -> Unit) {
         )
     }
 }
+
+@Composable
+fun LocationMapSection(locationName: String) {
+    val context = LocalContext.current // Necessário para iniciar Intents
+
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF2C2C3E))
+                .clickable {
+                    // --- ABRE O MAPA ---
+                    // Cria um URI "geo:0,0?q=NomeDoLocal"
+                    val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
+                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                    // Tenta abrir diretamente a app de mapas do Google se disponível, senão deixa o sistema escolher
+                    mapIntent.setPackage("com.google.android.apps.maps")
+
+                    try {
+                        context.startActivity(mapIntent)
+                    } catch (e: Exception) {
+                        // Fallback: Tenta abrir no browser ou outra app de mapas sem forçar pacote
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("http://maps.google.com/?q=${Uri.encode(locationName)}"))
+                        context.startActivity(browserIntent)
+                    }
+                }
+        ) {
+            // Placeholder visual (Imagem estática ou ícone)
+            // Se tiveres API Key, podes usar a URL do Static Maps API. Se não, fica um placeholder bonito.
+            AsyncImage(
+                model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_API_KEY_HERE",
+                contentDescription = "Map Preview",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(0.5f)
+            )
+
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = Color.Red,
+                modifier = Modifier.align(Alignment.Center).size(40.dp)
+            )
+
+            Text(
+                "Tap to open Maps",
+                color = TextWhite,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+            )
+        }
+    }
+}
+
+// --- RESTANTES COMPONENTES (Mantidos iguais) ---
 
 @Composable
 fun InfoSection(event: Event) {
@@ -415,36 +404,6 @@ fun AboutSection(description: String) {
 }
 
 @Composable
-fun LocationMapSection() {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF2C2C3E))
-        ) {
-            AsyncImage(
-                model = "https://maps.googleapis.com/maps/api/staticmap?center=Lisbon&zoom=13&size=600x300&maptype=roadmap&key=YOUR_KEY",
-                contentDescription = "Map Preview",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(0.5f)
-            )
-
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = null,
-                tint = Color.Red,
-                modifier = Modifier.align(Alignment.Center).size(40.dp)
-            )
-        }
-    }
-}
-
-@Composable
 fun TagsSection(category: String, price: Double) {
     val tags = listOf(category, "Outdoor", "Festival", if (price == 0.0) "Free" else "Paid")
 
@@ -462,6 +421,75 @@ fun TagsSection(category: String, price: Double) {
                     Text(tag, color = TextGray, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CommentInputSection(onSendComment: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text("Write a comment...", color = TextGray) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentPurple,
+                unfocusedBorderColor = TextGray,
+                focusedTextColor = TextWhite,
+                unfocusedTextColor = TextWhite,
+                cursorColor = AccentPurple
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        IconButton(
+            onClick = {
+                if (text.isNotBlank()) {
+                    onSendComment(text)
+                    text = ""
+                }
+            },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = AccentPurple)
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = AccentPurpleDark)
+        }
+    }
+}
+
+@Composable
+fun CommentItem(comment: Comment) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.padding(horizontal = 20.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = ChipBg,
+            modifier = Modifier.size(40.dp)
+        ) {
+            if (comment.userPhotoUrl != null) {
+                AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop)
+            } else {
+                Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.padding(8.dp))
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
