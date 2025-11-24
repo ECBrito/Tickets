@@ -1,59 +1,80 @@
 package com.example.eventify.viewmodels
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope // Importante: usa o scope correto
+import androidx.lifecycle.viewModelScope
 import com.example.eventify.model.Event
 import com.example.eventify.repository.EventRepository
+import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine // <--- Importante
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-// 1. Herdar de ViewModel() para aproveitar o ciclo de vida
 class HomeViewModelKMM(
     private val repository: EventRepository
 ) : ViewModel() {
 
-    private val _featuredEvents = MutableStateFlow<List<Event>>(emptyList())
-    val featuredEvents: StateFlow<List<Event>> = _featuredEvents.asStateFlow()
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
-    private val _upcomingEvents = MutableStateFlow<List<Event>>(emptyList())
-    val upcomingEvents: StateFlow<List<Event>> = _upcomingEvents.asStateFlow()
+    // User ID atual (para saber quais favoritos buscar)
+    private val currentUserId = Firebase.auth.currentUser?.uid ?: ""
 
-    private val _isLoading = MutableStateFlow(true) // Começa true para carregar logo
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    // 1. Flow dos Eventos (Cru)
+    private val allEventsFlow = repository.events
 
-    init {
-        // Começa a ouvir os eventos assim que o ViewModel é criado
-        observeEvents()
+    // 2. Flow dos Favoritos (IDs)
+    private val favoritesFlow = if (currentUserId.isNotEmpty()) {
+        repository.getFavoriteEventIds(currentUserId)
+    } else {
+        // Se não estiver logado, flow vazio
+        kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
-    private fun observeEvents() {
+    // 3. COMBINAÇÃO: Eventos + Favoritos = Eventos Prontos para UI
+    // O 'combine' junta os dois flows. Sempre que um muda, ele recalcula.
+    private val eventsWithFavs = combine(allEventsFlow, favoritesFlow) { events, favIds ->
+        events.map { event ->
+            // Verifica se o ID deste evento está na lista de favoritos
+            event.copy(isSaved = favIds.contains(event.id))
+        }
+    }
+
+    // Agora expomos as listas já filtradas e marcadas
+    val featuredEvents: StateFlow<List<Event>> = eventsWithFavs
+        .combine(favoritesFlow) { events, _ ->
+            // Logica de destaque (ex: primeiros 3 ou campo isFeatured)
+            events.take(3)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val upcomingEvents: StateFlow<List<Event>> = eventsWithFavs
+        .combine(favoritesFlow) { events, _ ->
+            events.drop(3)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // O stateIn trata do loading inicial, mas podemos forçar update ao isLoading
         viewModelScope.launch {
-            _isLoading.value = true
-
-            // 2. "Collect" no Flow do repositório.
-            // Isto fica vivo e atualiza a UI sempre que o Firebase mudar.
-            repository.events.collect { allEvents ->
-
-                // Lógica de filtro (podes ajustar esta lógica se quiseres critérios reais)
-                _featuredEvents.value = allEvents.take(3) // Ex: Primeiros 3 são destaque
-                _upcomingEvents.value = allEvents.drop(3) // O resto são "próximos"
-
+            eventsWithFavs.collect {
                 _isLoading.value = false
             }
         }
     }
 
-    fun refresh() {
-        // Como o Flow (.collect acima) é em tempo real,
-        // "refresh" geralmente não é necessário no Firebase.
-        // Mas se quiseres forçar um loading visual:
+    // Ação da UI
+    fun toggleSave(eventId: String) {
+        if (currentUserId.isBlank()) return // Ou mandar para login
+
         viewModelScope.launch {
-            _isLoading.value = true
-            // Simula um pequeno delay ou re-executa lógica se necessário
-            kotlinx.coroutines.delay(500)
-            _isLoading.value = false
+            repository.toggleFavorite(currentUserId, eventId)
         }
     }
+
+    // Função dummy para compatibilidade se a UI ainda chamar loadData
+    fun loadData() {}
 }

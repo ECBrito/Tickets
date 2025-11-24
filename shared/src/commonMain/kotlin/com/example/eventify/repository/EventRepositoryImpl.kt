@@ -254,4 +254,29 @@ class EventRepositoryImpl(
             null
         }
     }
+
+    override fun getFavoriteEventIds(userId: String): Flow<List<String>> {
+        // Escuta a coleção: users/{userId}/favorites
+        return usersCollection.document(userId).collection("favorites").snapshots.map { snapshot ->
+            snapshot.documents.map { it.id } // Retorna apenas os IDs dos eventos
+        }
+    }
+
+    override suspend fun toggleFavorite(userId: String, eventId: String) {
+        try {
+            val favDoc = usersCollection.document(userId).collection("favorites").document(eventId)
+            val snapshot = favDoc.get()
+
+            if (snapshot.exists) {
+                // Se já existe, remove (Desmarcar)
+                favDoc.delete()
+            } else {
+                // Se não existe, cria (Marcar) - Guardamos timestamp
+                val data = mapOf("savedAt" to Clock.System.now().toEpochMilliseconds())
+                favDoc.set(data)
+            }
+        } catch (e: Exception) {
+            println("Erro ao mudar favorito: ${e.message}")
+        }
+    }
 }

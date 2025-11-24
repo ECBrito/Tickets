@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
-import com.example.eventify.ui.components.EventCard
-import com.example.eventify.ui.components.IconButtonWithBadge
+import com.example.eventify.ui.components.EventCard // O teu componente rico
+import com.example.eventify.ui.components.IconButtonWithBadge // O teu componente rico
 
 // =====================================================================
 // TELA HOME (Conteúdo)
@@ -33,7 +33,6 @@ import com.example.eventify.ui.components.IconButtonWithBadge
 fun HomeScreenContent(
     onEventClick: (String) -> Unit,
     onSeeAllClick: () -> Unit,
-    // Callbacks extras para a TopBar
     onSearchClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
@@ -117,7 +116,8 @@ fun HomeScreenContent(
                     EventCard(
                         event = event,
                         onClick = onEventClick,
-                        onSave = { /* Implementar lógica de salvar no ViewModel futuramente */ }
+                        // LIGAÇÃO AO VIEWMODEL PARA FAVORITOS:
+                        onSave = { viewModel.toggleSave(event.id) }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -174,8 +174,9 @@ fun HomeTopBar(
             // Usando o teu componente IconButtonWithBadge
             IconButtonWithBadge(
                 icon = Icons.Default.Notifications,
-                badgeCount = 3, // Exemplo estático, depois podes ligar ao ViewModel
-                onClick = onNotificationsClick
+                badgeCount = 3, // Exemplo estático
+                onClick = onNotificationsClick,
+                contentDescription = "Notifications"
             )
             IconButton(onClick = onProfileClick) {
                 Icon(Icons.Default.AccountCircle, contentDescription = "Profile", tint = Color.White)
@@ -242,8 +243,9 @@ fun FeatureCard(
                 Spacer(Modifier.height(4.dp))
 
                 // Exibe a data (string simples vinda do KMM)
+                // Nota: Podes usar o formatDateTime aqui também se quiseres
                 Text(
-                    text = event.dateTime,
+                    text = event.dateTime.take(10), // Mostra só a data (YYYY-MM-DD)
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )

@@ -37,4 +37,10 @@ interface EventRepository {
     suspend fun getUserProfile(userId: String): UserProfile?
     suspend fun updateUserProfile(userId: String, profile: UserProfile): Boolean
     suspend fun uploadProfileImage(imageBytes: ByteArray, userId: String): String?
+
+    // Observa a lista de IDs que o user guardou (Flow em tempo real)
+    fun getFavoriteEventIds(userId: String): Flow<List<String>>
+
+    // Adiciona ou Remove o favorito
+    suspend fun toggleFavorite(userId: String, eventId: String)
 }

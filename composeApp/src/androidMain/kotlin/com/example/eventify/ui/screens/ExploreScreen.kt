@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.BookmarkBorder // Importante
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,43 +23,31 @@ import com.example.eventify.model.Event
 import com.example.eventify.model.FilterState
 import com.example.eventify.ui.components.FilterBottomSheet
 
-// =====================================================================
-// TELA EXPLORE
-// =====================================================================
-
 @Composable
 fun ExploreScreen(
     onEventClick: (String) -> Unit,
     onMapClick: () -> Unit = {},
     viewModel: com.example.eventify.viewmodels.ExploreViewModelKMM = remember { AppModule.provideExploreViewModel() }
 ) {
-    // Estados do ViewModel
     val events by viewModel.events.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Estado local para a UI
     var showFilters by remember { mutableStateOf(false) }
     var currentFilterState by remember { mutableStateOf(FilterState()) }
 
     Scaffold(
         containerColor = Color(0xFF0B0A12)
     ) { innerPadding ->
-
-        // 1. CORREÇÃO: Aplicar o innerPadding aqui no Box raiz
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier = Modifier.fillMaxSize().padding(innerPadding)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- TOPO: Barra de Pesquisa + Botão de Mapa ---
+                // --- TOPO ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -68,19 +57,18 @@ fun ExploreScreen(
                         onQueryChange = { viewModel.updateSearchQuery(it) },
                         modifier = Modifier.weight(1f)
                     )
-
                     FilledIconButton(
                         onClick = onMapClick,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF151520)),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Icon(Icons.Default.Map, contentDescription = "Map View", tint = Color.White)
+                        Icon(Icons.Default.Map, contentDescription = "Map", tint = Color.White)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- CABEÇALHO DA LISTA + BOTÃO DE FILTROS ---
+                // --- FILTROS ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -92,13 +80,9 @@ fun ExploreScreen(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
-
                     Button(
                         onClick = { showFilters = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF151520),
-                            contentColor = Color.White
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF151520), contentColor = Color.White),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -109,7 +93,7 @@ fun ExploreScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- LISTA DE EVENTOS ---
+                // --- LISTA ---
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -122,13 +106,14 @@ fun ExploreScreen(
                     } else {
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
-                            // Adicionamos padding extra no fundo para o último item não ficar cortado
                             contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
                             items(events) { event ->
                                 ExploreEventCard(
                                     event = event,
-                                    onClick = { onEventClick(event.id) }
+                                    onClick = { onEventClick(event.id) },
+                                    // LIGAÇÃO FINAL AQUI:
+                                    onToggleFavorite = { viewModel.toggleFavorite(event.id) }
                                 )
                             }
                         }
@@ -136,7 +121,6 @@ fun ExploreScreen(
                 }
             }
 
-            // --- MODAL DE FILTROS ---
             if (showFilters) {
                 FilterBottomSheet(
                     initialState = currentFilterState,
@@ -152,22 +136,16 @@ fun ExploreScreen(
     }
 }
 
-// =====================================================================
-// COMPONENTES LOCAIS
-// =====================================================================
+// --- COMPONENTES LOCAIS ---
 
 @Composable
-fun ExploreSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun ExploreSearchBar(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = modifier,
-        placeholder = { Text("Search events or venues", color = Color.Gray) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon", tint = Color.Gray) },
+        placeholder = { Text("Search events", color = Color.Gray) },
+        leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
         shape = CircleShape,
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
@@ -184,7 +162,8 @@ fun ExploreSearchBar(
 @Composable
 fun ExploreEventCard(
     event: Event,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit // <--- Novo callback
 ) {
     Card(
         onClick = onClick,
@@ -195,24 +174,13 @@ fun ExploreEventCard(
         Column {
             AsyncImage(
                 model = event.imageUrl,
-                contentDescription = "Event Poster",
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.7f)
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.7f)
             )
 
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                 InfoRow(icon = Icons.Default.CalendarMonth, text = event.dateTime)
                 InfoRow(icon = Icons.Default.LocationOn, text = event.location)
 
@@ -223,30 +191,26 @@ fun ExploreEventCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Exibe "Free" se price for 0, senão exibe o valor
                     val priceText = if (event.price == 0.0) "Free" else "$${event.price}"
                     val priceColor = if (event.price == 0.0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
 
-                    Text(
-                        text = priceText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = priceColor
-                    )
+                    Text(priceText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = priceColor)
 
+                    // Botão de Bookmark Reativo
                     Button(
-                        onClick = { /* Lógica de bookmark futura */ },
+                        onClick = onToggleFavorite, // <--- Chama o ViewModel
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
+                        // Ícone muda se estiver salvo ou não
                         Icon(
-                            Icons.Default.BookmarkBorder,
+                            imageVector = if (event.isSaved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                             contentDescription = "Bookmark",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(if (event.isSaved) "Saved" else "Save", color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }
@@ -256,20 +220,8 @@ fun ExploreEventCard(
 
 @Composable
 private fun InfoRow(icon: ImageVector, text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
     }
 }
