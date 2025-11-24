@@ -71,4 +71,8 @@ object AppModule {
     fun provideTicketDetailViewModel(ticketId: String): TicketDetailViewModel {
         return TicketDetailViewModel(eventRepository, ticketId, currentUserId)
     }
+
+    fun provideAttendeesViewModel(eventId: String): AttendeesViewModel {
+        return AttendeesViewModel(eventRepository, eventId)
+    }
 }

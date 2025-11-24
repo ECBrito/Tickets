@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector // <--- O IMPORT QUE FALTAVA
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -42,13 +42,13 @@ fun OrganizerDashboardScreen(
     onCreateEventClick: () -> Unit,
     onEventClick: (String) -> Unit,
     onScanClick: () -> Unit,
-    onEditEventClick: (String) -> Unit
+    onEditEventClick: (String) -> Unit,
+    onViewAttendeesClick: (String) -> Unit // <--- NOVO PARÂMETRO
 ) {
     val viewModel = remember { AppModule.provideOrganizerViewModel() }
     val events by viewModel.events.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Mock Stats
     val totalRevenue = "$12,450"
     val revenueGrowth = "+5.2%"
     val registrations = "8,921"
@@ -97,7 +97,9 @@ fun OrganizerDashboardScreen(
                         event = events.first(),
                         onClick = { onEventClick(events.first().id) },
                         onDeleteClick = { viewModel.deleteEvent(events.first().id) },
-                        onEditClick = { onEditEventClick(events.first().id) }
+                        onEditClick = { onEditEventClick(events.first().id) },
+                        // Passamos a função nova:
+                        onViewAttendeesClick = { onViewAttendeesClick(events.first().id) }
                     )
                 }
             }
@@ -123,7 +125,9 @@ fun OrganizerDashboardScreen(
                             event = event,
                             onClick = { onEventClick(event.id) },
                             onDeleteClick = { viewModel.deleteEvent(event.id) },
-                            onEditClick = { onEditEventClick(event.id) }
+                            onEditClick = { onEditEventClick(event.id) },
+                            // Passamos a função nova:
+                            onViewAttendeesClick = { onViewAttendeesClick(event.id) }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -207,7 +211,8 @@ fun HighlightEventCard(
     event: Event,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onViewAttendeesClick: () -> Unit // <--- NOVO PARÂMETRO
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val gradient = Brush.horizontalGradient(colors = listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)))
@@ -233,15 +238,24 @@ fun HighlightEventCard(
                 }
             }
 
+            // MENU
             Box(modifier = Modifier.align(Alignment.TopEnd)) {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "Options", tint = Color.White) }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = CardBg) {
+                    // OPÇÃO 1: EDITAR
                     DropdownMenuItem(
                         text = { Text("Edit Event", color = Color.White) },
                         onClick = { showMenu = false; onEditClick() },
                         leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White) }
                     )
+                    // OPÇÃO 2: VER PARTICIPANTES (NOVA)
+                    DropdownMenuItem(
+                        text = { Text("Manage Attendees", color = Color.White) },
+                        onClick = { showMenu = false; onViewAttendeesClick() },
+                        leadingIcon = { Icon(Icons.Default.People, null, tint = Color.White) }
+                    )
                     HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
+                    // OPÇÃO 3: APAGAR
                     DropdownMenuItem(
                         text = { Text("Delete Event", color = Color(0xFFFF3D71)) },
                         onClick = { showMenu = false; onDeleteClick() },
@@ -258,7 +272,8 @@ fun DashboardEventItem(
     event: Event,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onViewAttendeesClick: () -> Unit // <--- NOVO PARÂMETRO
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -275,6 +290,8 @@ fun DashboardEventItem(
                     Text("Live", color = GreenGrowth, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
             }
+
+            // MENU
             Box {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, "More", tint = TextGray) }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = CardBg) {
@@ -282,6 +299,11 @@ fun DashboardEventItem(
                         text = { Text("Edit Event", color = Color.White) },
                         onClick = { showMenu = false; onEditClick() },
                         leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Manage Attendees", color = Color.White) },
+                        onClick = { showMenu = false; onViewAttendeesClick() },
+                        leadingIcon = { Icon(Icons.Default.People, null, tint = Color.White) }
                     )
                     HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
                     DropdownMenuItem(
@@ -299,6 +321,6 @@ fun DashboardEventItem(
 @Composable
 fun OrganizerDashboardPreview() {
     EventifyTheme(darkTheme = true) {
-        // Preview
+        OrganizerDashboardScreen({}, {}, {}, {}, {})
     }
 }

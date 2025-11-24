@@ -6,6 +6,7 @@ import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.Comment
 import com.example.eventify.model.UserProfile
 import kotlinx.coroutines.flow.Flow
+import com.example.eventify.model.Attendee
 // Adiciona este import
 import kotlinx.serialization.InternalSerializationApi
 
@@ -47,4 +48,7 @@ interface EventRepository {
     suspend fun updateUserFcmToken(userId: String, token: String)
 
     suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean
+
+    suspend fun getEventAttendees(eventId: String): List<Attendee>
+    suspend fun manualCheckIn(ticketId: String): Boolean
 }
