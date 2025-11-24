@@ -63,4 +63,8 @@ object AppModule {
     fun provideEditProfileViewModel(): EditProfileViewModel {
         return EditProfileViewModel(eventRepository, currentUserId)
     }
+
+    fun provideEditEventViewModel(eventId: String): EditEventViewModel {
+        return EditEventViewModel(eventRepository, eventId)
+    }
 }

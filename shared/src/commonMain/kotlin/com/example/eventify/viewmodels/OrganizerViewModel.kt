@@ -69,7 +69,9 @@ class OrganizerViewModel(
     fun deleteEvent(eventId: String) {
         viewModelScope.launch {
             _isLoading.value = true
+            // O repositório já tem esta função implementada desde o início!
             repository.deleteEvent(eventId)
+            // Como o Flow 'events' é em tempo real, a lista atualiza-se sozinha
             _isLoading.value = false
         }
     }
@@ -91,4 +93,5 @@ class OrganizerViewModel(
             _events.value = repository.searchEvents(query, currentList)
         }
     }
+
 }

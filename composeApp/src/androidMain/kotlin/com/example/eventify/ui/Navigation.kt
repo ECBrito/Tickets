@@ -17,6 +17,7 @@ import com.example.eventify.ui.screens.auth.SignInScreen
 import com.example.eventify.ui.screens.auth.SignUpScreen
 // Imports de Organizador
 import com.example.eventify.ui.screens.organizer.CreateEventScreen
+import com.example.eventify.ui.screens.organizer.EditEventScreen // <--- IMPORT NOVO
 import com.example.eventify.ui.screens.organizer.OrganizerDashboardScreen
 import com.example.eventify.ui.screens.organizer.OrganizerEventDashboard
 import com.example.eventify.ui.screens.organizer.ScanTicketScreen
@@ -40,7 +41,7 @@ object Screen {
     const val EXPLORE_LIST = "explore_list"
     const val EXPLORE_MAP = "explore_map"
     const val NOTIFICATIONS = "notifications"
-    const val EDIT_PROFILE = "edit_profile" // <--- NOVA ROTA
+    const val EDIT_PROFILE = "edit_profile"
 
     // --- EVENTOS & TICKETS ---
     const val EVENT_DETAIL = "event/{eventId}"
@@ -50,14 +51,17 @@ object Screen {
     // --- ORGANIZER ---
     const val ORGANIZER_DASHBOARD = "organizer_dashboard"
     const val CREATE_EVENT = "create_event"
+    const val EDIT_EVENT = "edit_event/{eventId}" // <--- MOVIDO PARA AQUI
     const val ORGANIZER_EVENT_STATS = "organizer_event_stats/{eventId}"
     const val SCANNER = "scanner"
+
 
     // --- HELPER FUNCTIONS ---
     fun eventDetail(eventId: String) = "event/$eventId"
     fun purchase(eventId: String) = "purchase/$eventId"
     fun ticketDetail(ticketId: String, eventTitle: String) = "ticket/$ticketId/$eventTitle"
     fun organizerEventStats(eventId: String) = "organizer_event_stats/$eventId"
+    fun editEvent(eventId: String) = "edit_event/$eventId" // <--- MOVIDO PARA AQUI
 }
 
 @Composable
@@ -138,7 +142,7 @@ fun EventifyNavHost(
             NotificationsScreen(onBackClick = { navController.popBackStack() })
         }
 
-        // 5. Editar Perfil (NOVO)
+        // 5. Editar Perfil
         composable(Screen.EDIT_PROFILE) {
             EditProfileScreen(navController = navController)
         }
@@ -201,7 +205,9 @@ fun EventifyNavHost(
             OrganizerDashboardScreen(
                 onCreateEventClick = { navController.navigate(Screen.CREATE_EVENT) },
                 onEventClick = { eventId -> navController.navigate(Screen.organizerEventStats(eventId)) },
-                onScanClick = { navController.navigate(Screen.SCANNER) }
+                onScanClick = { navController.navigate(Screen.SCANNER) },
+                // ADICIONA ESTA LINHA:
+                onEditEventClick = { eventId -> navController.navigate(Screen.editEvent(eventId)) }
             )
         }
 
@@ -213,7 +219,20 @@ fun EventifyNavHost(
             )
         }
 
-        // 3. Estatísticas do Evento
+        // 3. Editar Evento (NOVO)
+        composable(
+            route = Screen.EDIT_EVENT,
+            arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+            EditEventScreen(
+                eventId = eventId,
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { navController.popBackStack() }
+            )
+        }
+
+        // 4. Estatísticas do Evento
         composable(
             route = Screen.ORGANIZER_EVENT_STATS,
             arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -225,7 +244,7 @@ fun EventifyNavHost(
             )
         }
 
-        // 4. Scanner de Bilhetes
+        // 5. Scanner de Bilhetes
         composable(Screen.SCANNER) {
             ScanTicketScreen(navController = navController)
         }
