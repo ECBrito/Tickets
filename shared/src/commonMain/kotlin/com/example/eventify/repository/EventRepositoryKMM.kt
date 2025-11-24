@@ -43,4 +43,6 @@ interface EventRepository {
 
     // Adiciona ou Remove o favorito
     suspend fun toggleFavorite(userId: String, eventId: String)
+
+    suspend fun updateUserFcmToken(userId: String, token: String)
 }

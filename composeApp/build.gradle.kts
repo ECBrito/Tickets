@@ -75,6 +75,9 @@ kotlin {
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.1"))
             implementation("com.google.firebase:firebase-auth-ktx")
             implementation("com.google.firebase:firebase-firestore-ktx")
+
+            // --- FIREBASE CLOUD MESSAGING (FCM) ---
+            implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
         }
 
         commonTest.dependencies {

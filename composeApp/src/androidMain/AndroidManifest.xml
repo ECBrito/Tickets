@@ -13,7 +13,13 @@
         android:supportsRtl="true"
 
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-
+        <service
+            android:name=".EventifyMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <!-- A TAG <meta-data> DEVE FICAR AQUI (Dentro de Application, fora de Activity) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

@@ -279,4 +279,13 @@ class EventRepositoryImpl(
             println("Erro ao mudar favorito: ${e.message}")
         }
     }
+
+    override suspend fun updateUserFcmToken(userId: String, token: String) {
+        try {
+            // Atualiza apenas o campo fcmToken, sem apagar o resto
+            usersCollection.document(userId).update("fcmToken" to token)
+        } catch (e: Exception) {
+            println("Erro ao guardar token FCM: ${e.message}")
+        }
+    }
 }
