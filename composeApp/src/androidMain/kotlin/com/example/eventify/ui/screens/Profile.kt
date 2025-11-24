@@ -25,7 +25,9 @@ import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.UserProfile
 import com.example.eventify.ui.theme.EventifyTheme
+import kotlinx.serialization.InternalSerializationApi
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun ProfileScreen(
     onLogoutClick: () -> Unit,
@@ -114,6 +116,7 @@ fun ProfileScreen(
     }
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun ProfileHeader(profile: UserProfile) {
     Column(

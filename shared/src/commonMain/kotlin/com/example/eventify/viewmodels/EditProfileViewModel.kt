@@ -8,13 +8,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class EditProfileViewModel(
     private val repository: EventRepository,
     private val userId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _profile = MutableStateFlow(UserProfile())
+    @OptIn(InternalSerializationApi::class)
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
@@ -24,6 +27,7 @@ class EditProfileViewModel(
         loadProfile()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun loadProfile() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -35,12 +39,14 @@ class EditProfileViewModel(
         }
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun saveProfile(
         name: String,
         bio: String,
         socialLink: String,
         newImageBytes: ByteArray?,
-        onSuccess: () -> Unit
+        isPublic: Boolean, // <--- Faltava este campo para a privacidade
+        onSuccess: () -> Unit // <--- CORREÇÃO: Deve ser uma função, não um Boolean
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -58,14 +64,19 @@ class EditProfileViewModel(
                 name = name,
                 bio = bio,
                 socialLink = socialLink,
-                photoUrl = finalImageUrl
+                photoUrl = finalImageUrl,
+                isPublic = isPublic // <--- Guarda a escolha de privacidade
             )
 
             // 3. Grava na BD
             val success = repository.updateUserProfile(userId, updatedProfile)
 
             _isLoading.value = false
-            if (success) onSuccess()
+
+            // Se gravou com sucesso, chama o callback para voltar atrás
+            if (success) {
+                onSuccess()
+            }
         }
     }
 }

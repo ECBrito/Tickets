@@ -6,10 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
@@ -22,16 +20,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
-import com.example.eventify.ui.screens.organizer.uriToByteArray // Importa a função que criámos antes
+import com.example.eventify.ui.screens.organizer.uriToByteArray // Garante que esta função está acessível
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, InternalSerializationApi::class)
 @Composable
 fun EditProfileScreen(
     navController: NavController
@@ -43,23 +43,25 @@ fun EditProfileScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Estados Locais (preenchidos quando o profile carrega)
+    // Estados Locais
     var name by remember { mutableStateOf("") }
     var bio by remember { mutableStateOf("") }
     var socialLink by remember { mutableStateOf("") }
+    var isPublic by remember { mutableStateOf(true) } // <--- PRIVACIDADE
 
     // Imagem
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
-    // Quando o perfil carrega do Firebase, preenche os campos
+    // Preencher dados
     LaunchedEffect(profile) {
         if (name.isBlank()) name = profile.name
         if (bio.isBlank()) bio = profile.bio
         if (socialLink.isBlank()) socialLink = profile.socialLink
+        isPublic = profile.isPublic
     }
 
-    // Picker de Imagem
+    // Picker
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -86,16 +88,14 @@ fun EditProfileScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    viewModel.saveProfile(name, bio, socialLink, selectedImageBytes) {
+                    // Agora passamos também o isPublic
+                    viewModel.saveProfile(name, bio, socialLink, selectedImageBytes, isPublic) {
                         Toast.makeText(context, "Profile Updated!", Toast.LENGTH_SHORT).show()
                         navController.popBackStack()
                     }
                 },
                 enabled = !isLoading && name.isNotBlank(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(50.dp)
+                modifier = Modifier.fillMaxWidth().padding(16.dp).height(50.dp)
             ) {
                 if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 else Text("Save Changes")
@@ -110,39 +110,21 @@ fun EditProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- ÁREA DA FOTO ---
+            // FOTO
             Box(contentAlignment = Alignment.BottomEnd) {
-                // A Imagem (Prioridade: Nova selecionada > URL do Firebase > Placeholder)
                 if (selectedImageUri != null) {
-                    AsyncImage(
-                        model = selectedImageUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(120.dp).clip(CircleShape)
-                    )
+                    AsyncImage(model = selectedImageUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(120.dp).clip(CircleShape))
                 } else if (profile.photoUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = profile.photoUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(120.dp).clip(CircleShape)
-                    )
+                    AsyncImage(model = profile.photoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(120.dp).clip(CircleShape))
                 } else {
-                    Surface(
-                        modifier = Modifier.size(120.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
+                    Surface(modifier = Modifier.size(120.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
                         Icon(Icons.Default.Person, null, modifier = Modifier.padding(24.dp), tint = Color.Gray)
                     }
                 }
 
-                // Botão de Câmara Pequeno
                 IconButton(
                     onClick = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .size(40.dp)
+                    modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).size(40.dp)
                 ) {
                     Icon(Icons.Default.CameraAlt, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
@@ -150,32 +132,26 @@ fun EditProfileScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // --- CAMPOS ---
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Full Name") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            // CAMPOS
+            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = bio, onValueChange = { bio = it }, label = { Text("Bio") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 5)
+            OutlinedTextField(value = socialLink, onValueChange = { socialLink = it }, label = { Text("Social Link") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
-            OutlinedTextField(
-                value = bio,
-                onValueChange = { bio = it },
-                label = { Text("Bio") },
-                placeholder = { Text("Tell us about yourself...") },
+            // PRIVACIDADE
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 5
-            )
-
-            OutlinedTextField(
-                value = socialLink,
-                onValueChange = { socialLink = it },
-                label = { Text("Website / Social Link") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Public Attendance", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                    Text("Show my photo in events I attend", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                Switch(checked = isPublic, onCheckedChange = { isPublic = it })
+            }
         }
     }
 }
+
+// Se a função uriToByteArray estiver noutro ficheiro, não precisas de a ter aqui.
+// Se der erro de Unresolved, certifica-te que tens o import correto.

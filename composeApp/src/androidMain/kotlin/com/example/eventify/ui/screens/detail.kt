@@ -37,9 +37,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex // <--- IMPORT CRÍTICO PARA AS BOLINHAS
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
+import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.ui.Screen
@@ -48,7 +50,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.serialization.InternalSerializationApi
 
-// Cores do Design
+// Cores
 private val BgDark = Color(0xFF0B0A12)
 private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
@@ -68,6 +70,7 @@ fun EventDetailScreen(
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
     val event by viewModel.event.collectAsState()
     val comments by viewModel.comments.collectAsState()
+    val attendees by viewModel.attendees.collectAsState() // <--- ESTADO NOVO
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -79,12 +82,8 @@ fun EventDetailScreen(
                 BottomActionSection(
                     isRegistered = viewModel.isRegistered,
                     onRsvpClick = {
-                        if (viewModel.isRegistered) {
-                            viewModel.toggleRsvp() // Cancela inscrição
-                        } else {
-                            // Vai para o ecrã de compra
-                            navController.navigate(Screen.purchase(currentEvent.id))
-                        }
+                        if (viewModel.isRegistered) viewModel.toggleRsvp()
+                        else navController.navigate(Screen.purchase(currentEvent.id))
                     }
                 )
             }
@@ -101,21 +100,25 @@ fun EventDetailScreen(
                     .padding(bottom = paddingValues.calculateBottomPadding())
             ) {
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    // 1. Header (Imagem + Partilha com Incremento)
+                    // 1. Header
                     item {
                         HeaderSection(
                             event = event!!,
                             onBackClick = { navController.popBackStack() },
-                            // LIGAÇÃO DA PARTILHA:
                             onShareClick = { viewModel.registerShare() },
                             animatedVisibilityScope = animatedVisibilityScope,
                             sharedTransitionScope = sharedTransitionScope
                         )
                     }
 
-                    // 2. Info (Data Clicável + Local)
+                    // 2. Info + Attendees (Prova Social)
                     item {
                         InfoSection(event = event!!)
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // --- AQUI ESTÁ A CHAMADA NOVA ---
+                        AttendeesPreviewSection(allAttendees = attendees)
+
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
@@ -125,14 +128,13 @@ fun EventDetailScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 4. Conteúdo Dinâmico da Tab
+                    // 4. Conteúdo da Tab
                     when (selectedTab) {
-                        0 -> { // Details Tab
+                        0 -> { // Details
                             item {
                                 Column {
                                     AboutSection(description = event!!.description)
                                     Spacer(modifier = Modifier.height(24.dp))
-                                    // Mapa Clicável
                                     LocationMapSection(locationName = event!!.location)
                                     Spacer(modifier = Modifier.height(24.dp))
                                     TagsSection(category = event!!.category, price = event!!.price)
@@ -140,22 +142,22 @@ fun EventDetailScreen(
                                 }
                             }
                         }
-                        1 -> { // Attendees Tab
+                        1 -> { // Attendees (Lista completa, opcional)
+                            // Podes reutilizar a AttendeesPreviewSection aqui ou fazer uma lista vertical
                             item {
-                                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                    Text("Attendees list coming soon...", color = TextGray)
+                                Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                                    if (attendees.isEmpty()) Text("No one yet.", color = TextGray)
+                                    else Text("${attendees.size} people going!", color = TextWhite)
                                 }
                             }
                         }
-                        2 -> { // Comments Tab
+                        2 -> { // Comments
                             item {
                                 CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                             if (comments.isEmpty()) {
-                                item {
-                                    Text("No comments yet. Be the first!", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp))
-                                }
+                                item { Text("No comments yet.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
                             } else {
                                 items(comments) { comment ->
                                     CommentItem(comment)
@@ -171,82 +173,95 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES ---
+// --- COMPONENTES (INCLUINDO O NOVO ATTENDEES) ---
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
+    if (allAttendees.isEmpty()) return
+
+    // Filtra apenas os que têm perfil público e foto
+    val visibleAttendees = allAttendees.filter { it.isPublic && it.photoUrl.isNotBlank() }.take(5)
+    val totalCount = allAttendees.size
+
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text(
+            text = "Who's Going",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextWhite
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Face Pile (Sobreposição)
+            if (visibleAttendees.isNotEmpty()) {
+                Box(modifier = Modifier.width((30 * visibleAttendees.size).dp + 40.dp)) {
+                    visibleAttendees.forEachIndexed { index, attendee ->
+                        AsyncImage(
+                            model = attendee.photoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .padding(start = (28 * index).dp) // Deslocamento
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, BgDark, CircleShape)
+                                .zIndex(5f - index) // Ordem de empilhamento
+                        )
+                    }
+                }
+            } else {
+                // Ícone genérico se ninguém tiver foto
+                Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            // Texto de contagem
+            val remainingText = if (totalCount > 1) "+ $totalCount others going" else "is going"
+
+            Text(
+                text = remainingText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = AccentPurple,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+// --- RESTANTES COMPONENTES (MANTIDOS) ---
 
 @OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun HeaderSection(
-    event: Event,
-    onBackClick: () -> Unit,
-    onShareClick: () -> Unit, // <--- Parâmetro para incrementar
-    animatedVisibilityScope: AnimatedVisibilityScope,
-    sharedTransitionScope: SharedTransitionScope
+    event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope
 ) {
     val context = LocalContext.current
-
     with(sharedTransitionScope) {
         Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
-            // IMAGEM COM ANIMAÇÃO PARTILHADA
             AsyncImage(
-                model = event.imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .sharedElement(
-                        sharedContentState = rememberSharedContentState(key = "image-${event.id}"),
-                        animatedVisibilityScope = animatedVisibilityScope
-                    )
+                model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope)
             )
-
-            // Gradiente
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f))
-            )
-
-            // Botões Flutuantes
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                IconButton(
-                    onClick = onBackClick,
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextWhite)
+            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite)
                 }
-
-                // BOTÃO DE PARTILHA
                 IconButton(
                     onClick = {
-                        // 1. Abrir menu de partilha
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            putExtra(Intent.EXTRA_TEXT, "Check out this event: ${event.title} at ${event.location}. Join me via Eventify!")
-                            type = "text/plain"
-                        }
-                        val shareIntent = Intent.createChooser(sendIntent, "Share Event")
-                        context.startActivity(shareIntent)
-
-                        // 2. Incrementar contador na BD
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this event: ${event.title}"); type = "text/plain" }
+                        context.startActivity(Intent.createChooser(sendIntent, "Share"))
                         onShareClick()
                     },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", tint = TextWhite)
+                    Icon(Icons.Default.Share, "Share", tint = TextWhite)
                 }
             }
-
-            Text(
-                text = event.title,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = TextWhite,
-                modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 20.dp)
-            )
+            Text(event.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = TextWhite, modifier = Modifier.align(Alignment.BottomStart).padding(20.dp))
         }
     }
 }
@@ -255,36 +270,19 @@ fun HeaderSection(
 @Composable
 fun InfoSection(event: Event) {
     val context = LocalContext.current
-
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-
-        // DATA (Funcional: Adicionar ao Calendário)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable {
-                    try {
-                        val startMillis = LocalDateTime.parse(event.dateTime)
-                            .toInstant(TimeZone.currentSystemDefault())
-                            .toEpochMilliseconds()
-                        val endMillis = startMillis + (2 * 60 * 60 * 1000) // +2 horas
-
-                        val intent = Intent(Intent.ACTION_INSERT).apply {
-                            data = CalendarContract.Events.CONTENT_URI
-                            putExtra(CalendarContract.Events.TITLE, event.title)
-                            putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
-                            putExtra(CalendarContract.Events.DESCRIPTION, event.description)
-                            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
-                            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        println("Erro ao abrir calendário: ${e.message}")
-                    }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+            try {
+                val startMillis = LocalDateTime.parse(event.dateTime).toInstant(TimeZone.currentSystemDefault()).toEpochMilliseconds()
+                val intent = Intent(Intent.ACTION_INSERT).apply {
+                    data = CalendarContract.Events.CONTENT_URI
+                    putExtra(CalendarContract.Events.TITLE, event.title)
+                    putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
+                    putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
                 }
-                .padding(vertical = 8.dp)
-        ) {
+                context.startActivity(intent)
+            } catch (e: Exception) {}
+        }.padding(vertical = 8.dp)) {
             Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column {
@@ -292,20 +290,14 @@ fun InfoSection(event: Event) {
                 Text("Add to Calendar", style = MaterialTheme.typography.labelSmall, color = AccentPurple)
             }
         }
-
         Spacer(modifier = Modifier.height(8.dp))
-
-        // LOCAL
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
         }
-
         Spacer(modifier = Modifier.height(24.dp))
-
-        // ORGANIZADOR
-        Row(modifier = Modifier.border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp)) {
             Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
             Spacer(modifier = Modifier.width(12.dp))
             Text("Organized by Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
@@ -319,24 +311,12 @@ fun LocationMapSection(locationName: String) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
         Spacer(modifier = Modifier.height(12.dp))
-
-        // MAPA (Funcional: Abre Google Maps)
         Box(modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF2C2C3E)).clickable {
             val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
-            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-            mapIntent.setPackage("com.google.android.apps.maps")
-            try { context.startActivity(mapIntent) } catch (e: Exception) {
-                // Fallback para browser
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("http://maps.google.com/maps?q=${Uri.encode(locationName)}")))
-            }
+            try { context.startActivity(Intent(Intent.ACTION_VIEW, gmmIntentUri).setPackage("com.google.android.apps.maps")) }
+            catch (e: Exception) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(locationName)}"))) }
         }) {
-            // Placeholder visual
-            AsyncImage(
-                model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_KEY",
-                contentDescription = "Map Preview",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(0.5f)
-            )
+            AsyncImage(model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_KEY", contentDescription = "Map", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.5f))
             Icon(Icons.Default.LocationOn, null, tint = Color.Red, modifier = Modifier.align(Alignment.Center).size(40.dp))
             Text("Tap to open Maps", color = TextWhite, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
         }
@@ -425,5 +405,3 @@ private fun formatDateTime(dateTime: String): String {
         "$dayOfWeek, $month ${parsed.dayOfMonth} • $hour:$minute"
     } catch (e: Exception) { dateTime }
 }
-
-fun Modifier.alpha(alpha: Float) = this

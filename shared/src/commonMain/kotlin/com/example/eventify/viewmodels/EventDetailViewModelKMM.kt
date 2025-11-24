@@ -2,6 +2,7 @@ package com.example.eventify.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.eventify.model.Attendee // <--- Import
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.repository.EventRepository
@@ -28,13 +29,19 @@ class EventDetailViewModelKMM(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // --- NOVO: Lista de Comentários ---
     private val _comments = MutableStateFlow<List<Comment>>(emptyList())
     val comments: StateFlow<List<Comment>> = _comments.asStateFlow()
 
+    // --- NOVO: Lista de Participantes ---
+    @OptIn(InternalSerializationApi::class)
+    private val _attendees = MutableStateFlow<List<Attendee>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
+    val attendees: StateFlow<List<Attendee>> = _attendees.asStateFlow()
+
     init {
         observeEvent()
-        observeComments() // <--- Começa a escutar comentários
+        observeComments()
+        loadAttendees() // <--- Carregar a prova social
     }
 
     @OptIn(InternalSerializationApi::class)
@@ -52,12 +59,19 @@ class EventDetailViewModelKMM(
         }
     }
 
-    // --- NOVO: Escutar Comentários ---
     private fun observeComments() {
         viewModelScope.launch {
-            repository.getComments(eventId).collect { list ->
-                _comments.value = list
-            }
+            repository.getComments(eventId).collect { list -> _comments.value = list }
+        }
+    }
+
+    // --- NOVO: Carregar Participantes ---
+    @OptIn(InternalSerializationApi::class)
+    private fun loadAttendees() {
+        viewModelScope.launch {
+            // Buscamos todos (o filtro visual fazemos na UI)
+            val list = repository.getEventAttendees(eventId)
+            _attendees.value = list
         }
     }
 
@@ -67,30 +81,24 @@ class EventDetailViewModelKMM(
         }
     }
 
-    // --- NOVO: Enviar Comentário ---
     fun sendComment(text: String) {
         if (text.isBlank()) return
-
         viewModelScope.launch {
             val currentUser = Firebase.auth.currentUser
-            val userName = currentUser?.displayName ?: "User" // Fallback se não tiver nome
-            // Nota: Se tiveres foto no perfil, usa currentUser?.photoURL
-
+            val userName = currentUser?.displayName ?: "User"
             val newComment = Comment(
                 userId = userId,
                 userName = userName,
                 text = text,
-                timestamp = Clock.System.now().toEpochMilliseconds()
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                userPhotoUrl = currentUser?.photoURL
             )
             repository.addComment(eventId, newComment)
         }
     }
+
     fun registerShare() {
-        viewModelScope.launch {
-            repository.incrementEventShares(eventId)
-            // O Flow do evento atualiza-se automaticamente,
-            // por isso o número de shares vai subir na UI sozinho.
-        }
+        viewModelScope.launch { repository.incrementEventShares(eventId) }
     }
 
     @OptIn(InternalSerializationApi::class)

@@ -3,10 +3,10 @@ package com.example.eventify.repository
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
-import com.example.eventify.model.PromoCode
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
+import com.example.eventify.model.PromoCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.InternalSerializationApi
 
@@ -20,20 +20,22 @@ interface EventRepository {
     suspend fun getEventsRegisteredByUser(userId: String): List<Event>
     suspend fun toggleEventRegistration(eventId: String, userId: String)
     fun searchEvents(query: String, currentList: List<Event>): List<Event>
+    suspend fun incrementEventShares(eventId: String)
 
     // --- IMAGENS ---
     suspend fun uploadEventImage(imageBytes: ByteArray, fileName: String): String?
 
-    // --- BILHETES ---
+    // --- BILHETES & COMPRA ---
     suspend fun buyTickets(userId: String, event: Event, quantity: Int): Boolean
     suspend fun getUserTickets(userId: String): List<Ticket>
+    suspend fun getTicketsForEvent(eventId: String): List<Ticket>
     suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean
     suspend fun validateTicket(ticketId: String): TicketValidationResult
-    // Função de Estatísticas (Faltava na interface anterior)
-    suspend fun getTicketsForEvent(eventId: String): List<Ticket>
+    suspend fun verifyPromoCode(code: String): PromoCode?
 
-    // --- GESTÃO DE PARTICIPANTES (ORGANIZADOR) ---
+    // --- GESTÃO DE PARTICIPANTES (ORGANIZADOR & PÚBLICO) ---
     suspend fun getEventAttendees(eventId: String): List<Attendee>
+    suspend fun getPublicAttendeesPreview(eventId: String): List<Attendee>
     suspend fun manualCheckIn(ticketId: String): Boolean
 
     // --- COMENTÁRIOS ---
@@ -49,10 +51,4 @@ interface EventRepository {
     // --- FAVORITOS ---
     fun getFavoriteEventIds(userId: String): Flow<List<String>>
     suspend fun toggleFavorite(userId: String, eventId: String)
-
-    // --- PARTILHAS (SOCIAL) ---
-    // Esta é a função que estava a dar erro de override
-    suspend fun incrementEventShares(eventId: String)
-
-    suspend fun verifyPromoCode(code: String): PromoCode?
 }

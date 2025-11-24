@@ -25,8 +25,9 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Attendee
+import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, InternalSerializationApi::class)
 @Composable
 fun AttendeesListScreen(
     eventId: String,
@@ -97,6 +98,7 @@ fun AttendeesListScreen(
     }
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun AttendeeItem(attendee: Attendee, onCheckInClick: () -> Unit) {
     Card(

@@ -8,15 +8,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class AttendeesViewModel(
     private val repository: EventRepository,
     private val eventId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _allAttendees = MutableStateFlow<List<Attendee>>(emptyList())
 
+    @OptIn(InternalSerializationApi::class)
     private val _filteredAttendees = MutableStateFlow<List<Attendee>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val attendees: StateFlow<List<Attendee>> = _filteredAttendees.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -29,6 +33,7 @@ class AttendeesViewModel(
         loadAttendees()
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun loadAttendees() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -44,6 +49,7 @@ class AttendeesViewModel(
         filterList(query)
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun filterList(query: String) {
         if (query.isBlank()) {
             _filteredAttendees.value = _allAttendees.value
@@ -54,6 +60,7 @@ class AttendeesViewModel(
         }
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun manualCheckIn(ticketId: String) {
         viewModelScope.launch {
             val success = repository.manualCheckIn(ticketId)
