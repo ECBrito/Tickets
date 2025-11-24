@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
+@OptIn(InternalSerializationApi::class)
 class HomeViewModelKMM(
     private val repository: EventRepository
 ) : ViewModel() {
@@ -28,6 +30,7 @@ class HomeViewModelKMM(
 
     private val currentUserId = Firebase.auth.currentUser?.uid ?: ""
 
+    @OptIn(InternalSerializationApi::class)
     private val allEventsFlow = repository.events
 
     private val favoritesFlow = if (currentUserId.isNotEmpty()) {
@@ -37,6 +40,7 @@ class HomeViewModelKMM(
     }
 
     // Base: Eventos + Info se é favorito
+    @OptIn(InternalSerializationApi::class)
     private val eventsWithFavs = combine(allEventsFlow, favoritesFlow) { events, favIds ->
         events.map { event ->
             event.copy(isSaved = favIds.contains(event.id))
@@ -44,6 +48,7 @@ class HomeViewModelKMM(
     }
 
     // 1. Featured: Sempre os primeiros 3, independentemente do filtro
+    @OptIn(InternalSerializationApi::class)
     val featuredEvents: StateFlow<List<Event>> = eventsWithFavs
         .combine(favoritesFlow) { events, _ ->
             events.take(3)
@@ -51,6 +56,7 @@ class HomeViewModelKMM(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // 2. Upcoming: O resto da lista, FILTRADO pela categoria
+    @OptIn(InternalSerializationApi::class)
     val upcomingEvents: StateFlow<List<Event>> = combine(
         eventsWithFavs,
         _selectedCategory

@@ -16,8 +16,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.eventify.di.AppModule
 import com.example.eventify.ui.Screen
+import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, InternalSerializationApi::class)
 @Composable
 fun PurchaseScreen(
     eventId: String,

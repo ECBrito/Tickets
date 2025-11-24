@@ -2,7 +2,7 @@ package com.example.eventify.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.CalendarContract // <--- Import Importante
+import android.provider.CalendarContract
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -46,8 +46,9 @@ import com.example.eventify.ui.Screen
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.serialization.InternalSerializationApi
 
-// Cores específicas do design
+// Cores do Design
 private val BgDark = Color(0xFF0B0A12)
 private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
@@ -55,7 +56,7 @@ private val AccentPurple = Color(0xFFD0BCFF)
 private val AccentPurpleDark = Color(0xFF381E72)
 private val ChipBg = Color(0xFF1E1E2C)
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun EventDetailScreen(
     eventId: String,
@@ -78,8 +79,12 @@ fun EventDetailScreen(
                 BottomActionSection(
                     isRegistered = viewModel.isRegistered,
                     onRsvpClick = {
-                        if (viewModel.isRegistered) viewModel.toggleRsvp()
-                        else navController.navigate(Screen.purchase(currentEvent.id))
+                        if (viewModel.isRegistered) {
+                            viewModel.toggleRsvp() // Cancela inscrição
+                        } else {
+                            // Vai para o ecrã de compra
+                            navController.navigate(Screen.purchase(currentEvent.id))
+                        }
                     }
                 )
             }
@@ -95,26 +100,39 @@ fun EventDetailScreen(
                     .fillMaxSize()
                     .padding(bottom = paddingValues.calculateBottomPadding())
             ) {
-                LazyColumn(
-                    modifier = Modifier.weight(1f)
-                ) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    // 1. Header (Imagem + Partilha com Incremento)
                     item {
                         HeaderSection(
                             event = event!!,
                             onBackClick = { navController.popBackStack() },
+                            // LIGAÇÃO DA PARTILHA:
+                            onShareClick = { viewModel.registerShare() },
                             animatedVisibilityScope = animatedVisibilityScope,
                             sharedTransitionScope = sharedTransitionScope
                         )
                     }
-                    item { InfoSection(event = event!!); Spacer(modifier = Modifier.height(24.dp)) }
-                    item { TabsSection(selectedTab = selectedTab, onTabSelected = { selectedTab = it }); Spacer(modifier = Modifier.height(24.dp)) }
 
+                    // 2. Info (Data Clicável + Local)
+                    item {
+                        InfoSection(event = event!!)
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // 3. Tabs
+                    item {
+                        TabsSection(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // 4. Conteúdo Dinâmico da Tab
                     when (selectedTab) {
-                        0 -> { // Details
+                        0 -> { // Details Tab
                             item {
                                 Column {
                                     AboutSection(description = event!!.description)
                                     Spacer(modifier = Modifier.height(24.dp))
+                                    // Mapa Clicável
                                     LocationMapSection(locationName = event!!.location)
                                     Spacer(modifier = Modifier.height(24.dp))
                                     TagsSection(category = event!!.category, price = event!!.price)
@@ -122,13 +140,22 @@ fun EventDetailScreen(
                                 }
                             }
                         }
-                        1 -> { // Attendees
-                            item { Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { Text("Attendees list coming soon...", color = TextGray) } }
+                        1 -> { // Attendees Tab
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                    Text("Attendees list coming soon...", color = TextGray)
+                                }
+                            }
                         }
-                        2 -> { // Comments
-                            item { CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) }); Spacer(modifier = Modifier.height(24.dp)) }
+                        2 -> { // Comments Tab
+                            item {
+                                CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
                             if (comments.isEmpty()) {
-                                item { Text("No comments yet. Be the first!", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
+                                item {
+                                    Text("No comments yet. Be the first!", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp))
+                                }
                             } else {
                                 items(comments) { comment ->
                                     CommentItem(comment)
@@ -144,13 +171,14 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES DE INTERFACE ---
+// --- COMPONENTES ---
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun HeaderSection(
     event: Event,
     onBackClick: () -> Unit,
+    onShareClick: () -> Unit, // <--- Parâmetro para incrementar
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
@@ -158,6 +186,7 @@ fun HeaderSection(
 
     with(sharedTransitionScope) {
         Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
+            // IMAGEM COM ANIMAÇÃO PARTILHADA
             AsyncImage(
                 model = event.imageUrl,
                 contentDescription = null,
@@ -170,16 +199,40 @@ fun HeaderSection(
                     )
             )
 
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
+            // Gradiente
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f))
+            )
 
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) {
+            // Botões Flutuantes
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp, start = 16.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(
+                    onClick = onBackClick,
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextWhite)
                 }
+
+                // BOTÃO DE PARTILHA
                 IconButton(
                     onClick = {
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this event: ${event.title}"); type = "text/plain" }
-                        context.startActivity(Intent.createChooser(sendIntent, "Share"))
+                        // 1. Abrir menu de partilha
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            putExtra(Intent.EXTRA_TEXT, "Check out this event: ${event.title} at ${event.location}. Join me via Eventify!")
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, "Share Event")
+                        context.startActivity(shareIntent)
+
+                        // 2. Incrementar contador na BD
+                        onShareClick()
                     },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
                 ) {
@@ -198,27 +251,25 @@ fun HeaderSection(
     }
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun InfoSection(event: Event) {
     val context = LocalContext.current
 
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
 
-        // 1. DATA (AGORA É CLICÁVEL PARA ADICIONAR AO CALENDÁRIO)
+        // DATA (Funcional: Adicionar ao Calendário)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .clickable {
                     try {
-                        // Tenta converter a data para milissegundos
                         val startMillis = LocalDateTime.parse(event.dateTime)
                             .toInstant(TimeZone.currentSystemDefault())
                             .toEpochMilliseconds()
+                        val endMillis = startMillis + (2 * 60 * 60 * 1000) // +2 horas
 
-                        val endMillis = startMillis + (2 * 60 * 60 * 1000) // Duração padrão de 2 horas
-
-                        // Cria o Intent para o Calendário
                         val intent = Intent(Intent.ACTION_INSERT).apply {
                             data = CalendarContract.Events.CONTENT_URI
                             putExtra(CalendarContract.Events.TITLE, event.title)
@@ -229,23 +280,22 @@ fun InfoSection(event: Event) {
                         }
                         context.startActivity(intent)
                     } catch (e: Exception) {
-                        // Se a data não for válida ou não houver app de calendário
                         println("Erro ao abrir calendário: ${e.message}")
                     }
                 }
-                .padding(vertical = 8.dp) // Área de toque maior
+                .padding(vertical = 8.dp)
         ) {
             Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
-                Text("Add to Calendar", style = MaterialTheme.typography.labelSmall, color = AccentPurple) // Indicação visual
+                Text("Add to Calendar", style = MaterialTheme.typography.labelSmall, color = AccentPurple)
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 2. LOCALIZAÇÃO
+        // LOCAL
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
@@ -254,40 +304,12 @@ fun InfoSection(event: Event) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 3. ORGANIZADOR
+        // ORGANIZADOR
         Row(modifier = Modifier.border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
             Spacer(modifier = Modifier.width(12.dp))
             Text("Organized by Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
         }
-    }
-}
-
-// --- (MANTÉM OS OUTROS COMPONENTES IGUAIS: TabsSection, AboutSection, LocationMapSection, etc.) ---
-
-@Composable
-fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("Details", "Attendees", "Comments")
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            tabs.forEachIndexed { index, title ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onTabSelected(index) }) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, color = if (selectedTab == index) TextWhite else TextGray, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal)
-                    if (selectedTab == index) { Spacer(modifier = Modifier.height(8.dp)); Box(modifier = Modifier.width(40.dp).height(3.dp).background(AccentPurple, RoundedCornerShape(2.dp))) }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(1.dp))
-        HorizontalDivider(color = TextGray.copy(alpha = 0.2f), thickness = 1.dp)
-    }
-}
-
-@Composable
-fun AboutSection(description: String) {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("About this Event", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(description, style = MaterialTheme.typography.bodyMedium, color = TextGray, lineHeight = 24.sp)
     }
 }
 
@@ -297,27 +319,26 @@ fun LocationMapSection(locationName: String) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
         Spacer(modifier = Modifier.height(12.dp))
+
+        // MAPA (Funcional: Abre Google Maps)
         Box(modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF2C2C3E)).clickable {
             val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
             val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
             mapIntent.setPackage("com.google.android.apps.maps")
-            try { context.startActivity(mapIntent) } catch (e: Exception) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(locationName)}"))) }
+            try { context.startActivity(mapIntent) } catch (e: Exception) {
+                // Fallback para browser
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("http://maps.google.com/maps?q=${Uri.encode(locationName)}")))
+            }
         }) {
-            AsyncImage(model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_API_KEY_HERE", contentDescription = "Map Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.5f))
+            // Placeholder visual
+            AsyncImage(
+                model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_KEY",
+                contentDescription = "Map Preview",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(0.5f)
+            )
             Icon(Icons.Default.LocationOn, null, tint = Color.Red, modifier = Modifier.align(Alignment.Center).size(40.dp))
             Text("Tap to open Maps", color = TextWhite, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
-        }
-    }
-}
-
-@Composable
-fun TagsSection(category: String, price: Double) {
-    val tags = listOf(category, "Outdoor", "Festival", if (price == 0.0) "Free" else "Paid")
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Tags", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            tags.forEach { tag -> Box(modifier = Modifier.background(ChipBg, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) { Text(tag, color = TextGray, style = MaterialTheme.typography.bodyMedium) } }
         }
     }
 }
@@ -348,6 +369,44 @@ fun CommentItem(comment: Comment) {
 }
 
 @Composable
+fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    val tabs = listOf("Details", "Attendees", "Comments")
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            tabs.forEachIndexed { index, title ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onTabSelected(index) }) {
+                    Text(title, style = MaterialTheme.typography.bodyLarge, color = if (selectedTab == index) TextWhite else TextGray, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal)
+                    if (selectedTab == index) { Spacer(modifier = Modifier.height(8.dp)); Box(modifier = Modifier.width(40.dp).height(3.dp).background(AccentPurple, RoundedCornerShape(2.dp))) }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(1.dp))
+        HorizontalDivider(color = TextGray.copy(alpha = 0.2f), thickness = 1.dp)
+    }
+}
+
+@Composable
+fun AboutSection(description: String) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("About this Event", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(description, style = MaterialTheme.typography.bodyMedium, color = TextGray, lineHeight = 24.sp)
+    }
+}
+
+@Composable
+fun TagsSection(category: String, price: Double) {
+    val tags = listOf(category, "Outdoor", "Festival", if (price == 0.0) "Free" else "Paid")
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Tags", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            tags.forEach { tag -> Box(modifier = Modifier.background(ChipBg, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) { Text(tag, color = TextGray, style = MaterialTheme.typography.bodyMedium) } }
+        }
+    }
+}
+
+@Composable
 fun BottomActionSection(isRegistered: Boolean, onRsvpClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth().background(BgDark).padding(20.dp)) {
         Button(onClick = onRsvpClick, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isRegistered) Color.Gray else AccentPurple, contentColor = if (isRegistered) TextWhite else AccentPurpleDark)) {
@@ -367,5 +426,4 @@ private fun formatDateTime(dateTime: String): String {
     } catch (e: Exception) { dateTime }
 }
 
-// Helper para alpha no modifier
 fun Modifier.alpha(alpha: Float) = this

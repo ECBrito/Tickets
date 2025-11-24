@@ -14,16 +14,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class ExploreViewModelKMM(
     private val repository: EventRepository
 ) : ViewModel() {
 
     // Dados "Crus" (Eventos + Estado de Favorito já aplicado)
+    @OptIn(InternalSerializationApi::class)
     private val _allEvents = MutableStateFlow<List<Event>>(emptyList())
 
     // Lista final filtrada que a UI vê
+    @OptIn(InternalSerializationApi::class)
     private val _filteredEvents = MutableStateFlow<List<Event>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val events: StateFlow<List<Event>> = _filteredEvents.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -40,6 +44,7 @@ class ExploreViewModelKMM(
         observeEventsWithFavorites()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun observeEventsWithFavorites() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -86,6 +91,7 @@ class ExploreViewModelKMM(
         applyFilters()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun applyFilters() {
         val query = _searchQuery.value.lowercase()
         val filters = _currentFilters

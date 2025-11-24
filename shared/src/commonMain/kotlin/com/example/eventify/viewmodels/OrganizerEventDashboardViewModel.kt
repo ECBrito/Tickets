@@ -3,14 +3,18 @@ package com.example.eventify.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.eventify.model.Event
+import com.example.eventify.model.Ticket
 import com.example.eventify.repository.EventRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.serialization.InternalSerializationApi
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 
-// Modelo de dados simples para as estatísticas
 data class EventStats(
     val totalAttendees: Int = 0,
     val attendeesGrowth: Double = 0.0,
@@ -31,7 +35,9 @@ class OrganizerEventDashboardViewModel(
     private val eventId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _event = MutableStateFlow<Event?>(null)
+    @OptIn(InternalSerializationApi::class)
     val event: StateFlow<Event?> = _event.asStateFlow()
 
     private val _stats = MutableStateFlow(EventStats())
@@ -43,60 +49,101 @@ class OrganizerEventDashboardViewModel(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // Cache local dos bilhetes
+    @OptIn(InternalSerializationApi::class)
+    private var allTickets: List<Ticket> = emptyList()
+
     init {
         loadDashboardData()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun loadDashboardData() {
         viewModelScope.launch {
             _isLoading.value = true
 
-            // 1. Carregar dados básicos do evento
-            // (Num cenário real, o repositorio buscaria o evento pelo ID)
+            // 1. Carregar Evento
             repository.events.collect { events ->
                 val foundEvent = events.find { it.id == eventId }
                 _event.value = foundEvent
 
-                // 2. Simular cálculo de estatísticas baseado no evento e no TimeRange
-                // Isto simula o delay da rede
                 if (foundEvent != null) {
-                    updateStatsForRange(_selectedTimeRange.value)
+                    // 2. Carregar TODOS os bilhetes deste evento (uma vez)
+                    allTickets = repository.getTicketsForEvent(eventId)
+
+                    // 3. Calcular stats iniciais
+                    calculateStats(_selectedTimeRange.value, foundEvent)
                 }
                 _isLoading.value = false
             }
         }
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun setTimeRange(range: TimeRange) {
         _selectedTimeRange.value = range
-        viewModelScope.launch {
-            _isLoading.value = true
-            delay(300) // Fake loading para UX
-            updateStatsForRange(range)
-            _isLoading.value = false
-        }
+        _event.value?.let { calculateStats(range, it) }
     }
 
-    private fun updateStatsForRange(range: TimeRange) {
-        // Lógica MOCK para variar os números quando mudas as abas
-        val multiplier = when(range) {
-            TimeRange.HOURS_24 -> 0.1
-            TimeRange.DAYS_7 -> 1.0
-            TimeRange.DAYS_30 -> 3.5
-            TimeRange.ALL -> 5.0
+    @OptIn(InternalSerializationApi::class)
+    private fun calculateStats(range: TimeRange, event: Event) {
+        val now = Clock.System.now()
+
+        // Definir janelas de tempo (Atual vs Anterior para calcular crescimento)
+        val (startTimeCurrent, startTimePrevious) = when (range) {
+            TimeRange.HOURS_24 -> Pair(now.minus(24.hours), now.minus(48.hours))
+            TimeRange.DAYS_7 -> Pair(now.minus(7.days), now.minus(14.days))
+            TimeRange.DAYS_30 -> Pair(now.minus(30.days), now.minus(60.days))
+            TimeRange.ALL -> Pair(Instant.fromEpochMilliseconds(0), Instant.fromEpochMilliseconds(0))
         }
 
+        // Filtros de Data
+        val ticketsCurrentPeriod = filterTicketsByDate(allTickets, startTimeCurrent.toEpochMilliseconds(), now.toEpochMilliseconds())
+        val ticketsPreviousPeriod = if (range == TimeRange.ALL) emptyList() else filterTicketsByDate(allTickets, startTimePrevious.toEpochMilliseconds(), startTimeCurrent.toEpochMilliseconds())
+
+        // --- CÁLCULOS ---
+
+        // 1. Attendees (Total de bilhetes vendidos no período)
+        val currentCount = ticketsCurrentPeriod.size
+        val previousCount = ticketsPreviousPeriod.size
+        val attendeesGrowth = calculateGrowth(currentCount.toDouble(), previousCount.toDouble())
+
+        // 2. Sales (Dinheiro ganho: Bilhetes * Preço)
+        val currentSales = currentCount * event.price
+        val previousSales = previousCount * event.price
+        val salesGrowth = calculateGrowth(currentSales, previousSales)
+
+        // 3. Capacity (Sempre baseada no total ABSOLUTO)
+        val totalSold = allTickets.size
+
+        // 4. Shares (Se adicionaste o campo 'shares' ao Evento no passo anterior)
+        // Se não adicionaste, usa 0 ou um valor mock
+        val currentShares = 0 // event.shares
+
         _stats.value = EventStats(
-            totalAttendees = (1250 * multiplier).toInt(),
-            attendeesGrowth = 5.2,
-            ticketSales = 85400.0 * multiplier,
-            salesGrowth = 12.8,
-            capacityCurrent = (1250 * multiplier).toInt().coerceAtMost(1500),
-            capacityMax = 1500,
-            engagementScore = 8.2,
-            engagementGrowth = -1.5,
-            socialShares = (789 * multiplier).toInt(),
-            sharesGrowth = 21.0
+            totalAttendees = currentCount,
+            attendeesGrowth = attendeesGrowth,
+            ticketSales = currentSales,
+            salesGrowth = salesGrowth,
+            capacityCurrent = totalSold,
+            // Se ainda não atualizaste o Event.kt com maxCapacity, usa 100 como default
+            capacityMax = 100, // event.maxCapacity
+
+            // Placeholders (exigiriam tabela de Analytics separada)
+            engagementScore = 8.5,
+            engagementGrowth = 1.2,
+            socialShares = currentShares,
+            sharesGrowth = 0.0
         )
+    }
+
+    @OptIn(InternalSerializationApi::class)
+    private fun filterTicketsByDate(tickets: List<Ticket>, start: Long, end: Long): List<Ticket> {
+        return tickets.filter { it.purchaseDate in start..end }
+    }
+
+    private fun calculateGrowth(current: Double, previous: Double): Double {
+        if (previous == 0.0) return if (current > 0) 100.0 else 0.0
+        return ((current - previous) / previous) * 100
     }
 }

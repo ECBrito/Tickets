@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class PurchaseViewModel(
     private val repository: EventRepository,
@@ -15,7 +16,9 @@ class PurchaseViewModel(
     private val eventId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _event = MutableStateFlow<Event?>(null)
+    @OptIn(InternalSerializationApi::class)
     val event: StateFlow<Event?> = _event.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
@@ -25,6 +28,7 @@ class PurchaseViewModel(
         loadEvent()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun loadEvent() {
         viewModelScope.launch {
             repository.events.collect { events ->
@@ -34,6 +38,7 @@ class PurchaseViewModel(
         }
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun confirmPurchase(quantity: Int, onSuccess: () -> Unit) {
         val currentEvent = _event.value ?: return
 

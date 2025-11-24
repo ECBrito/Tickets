@@ -19,10 +19,14 @@ class MyEventsViewModelKMM(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     // Lista de Bilhetes (Mapeados como Eventos para a UI)
+    @OptIn(InternalSerializationApi::class)
     private val _registeredEvents = MutableStateFlow<List<Event>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val registeredEvents: StateFlow<List<Event>> = _registeredEvents.asStateFlow()
 
+    @OptIn(InternalSerializationApi::class)
     private val _hostedEvents = MutableStateFlow<List<Event>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val hostedEvents: StateFlow<List<Event>> = _hostedEvents.asStateFlow()
 
     init {

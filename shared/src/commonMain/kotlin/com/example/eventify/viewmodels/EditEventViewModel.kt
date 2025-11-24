@@ -9,13 +9,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.serialization.InternalSerializationApi
 
 class EditEventViewModel(
     private val repository: EventRepository,
     private val eventId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _event = MutableStateFlow<Event?>(null)
+    @OptIn(InternalSerializationApi::class)
     val event: StateFlow<Event?> = _event.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
@@ -25,6 +28,7 @@ class EditEventViewModel(
         loadEvent()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun loadEvent() {
         viewModelScope.launch {
             // Procura o evento na lista (ou podia fazer um getById direto no repo)
@@ -35,6 +39,7 @@ class EditEventViewModel(
         }
     }
 
+    @OptIn(InternalSerializationApi::class)
     fun updateEvent(
         title: String,
         description: String,

@@ -1,16 +1,14 @@
 package com.example.eventify.repository
 
+import com.example.eventify.model.Attendee
+import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
-import com.example.eventify.model.Comment
 import com.example.eventify.model.UserProfile
 import kotlinx.coroutines.flow.Flow
-import com.example.eventify.model.Attendee
-// Adiciona este import
 import kotlinx.serialization.InternalSerializationApi
 
-// Adiciona esta anotação para silenciar o erro
 @OptIn(InternalSerializationApi::class)
 interface EventRepository {
     // --- EVENTOS ---
@@ -28,27 +26,30 @@ interface EventRepository {
     // --- BILHETES ---
     suspend fun buyTickets(userId: String, event: Event, quantity: Int): Boolean
     suspend fun getUserTickets(userId: String): List<Ticket>
+    suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean
     suspend fun validateTicket(ticketId: String): TicketValidationResult
+    // Função de Estatísticas (Faltava na interface anterior)
+    suspend fun getTicketsForEvent(eventId: String): List<Ticket>
+
+    // --- GESTÃO DE PARTICIPANTES (ORGANIZADOR) ---
+    suspend fun getEventAttendees(eventId: String): List<Attendee>
+    suspend fun manualCheckIn(ticketId: String): Boolean
 
     // --- COMENTÁRIOS ---
     fun getComments(eventId: String): Flow<List<Comment>>
     suspend fun addComment(eventId: String, comment: Comment): Boolean
 
-    // --- PERFIL (USER PROFILE) ---
+    // --- PERFIL & USER ---
     suspend fun getUserProfile(userId: String): UserProfile?
     suspend fun updateUserProfile(userId: String, profile: UserProfile): Boolean
     suspend fun uploadProfileImage(imageBytes: ByteArray, userId: String): String?
-
-    // Observa a lista de IDs que o user guardou (Flow em tempo real)
-    fun getFavoriteEventIds(userId: String): Flow<List<String>>
-
-    // Adiciona ou Remove o favorito
-    suspend fun toggleFavorite(userId: String, eventId: String)
-
     suspend fun updateUserFcmToken(userId: String, token: String)
 
-    suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean
+    // --- FAVORITOS ---
+    fun getFavoriteEventIds(userId: String): Flow<List<String>>
+    suspend fun toggleFavorite(userId: String, eventId: String)
 
-    suspend fun getEventAttendees(eventId: String): List<Attendee>
-    suspend fun manualCheckIn(ticketId: String): Boolean
+    // --- PARTILHAS (SOCIAL) ---
+    // Esta é a função que estava a dar erro de override
+    suspend fun incrementEventShares(eventId: String)
 }

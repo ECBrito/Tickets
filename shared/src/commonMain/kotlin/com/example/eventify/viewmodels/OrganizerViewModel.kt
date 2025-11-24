@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
+@OptIn(InternalSerializationApi::class)
 class OrganizerViewModel(
     private val repository: EventRepository // <--- Nome da interface corrigido
 ) : ViewModel() {
@@ -19,9 +21,11 @@ class OrganizerViewModel(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     // Mantemos duas listas: Todos os eventos (raw) e os Filtrados (display)
+    @OptIn(InternalSerializationApi::class)
     private val _allEvents = MutableStateFlow<List<Event>>(emptyList())
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val events: StateFlow<List<Event>> = _events.asStateFlow()
 
     init {

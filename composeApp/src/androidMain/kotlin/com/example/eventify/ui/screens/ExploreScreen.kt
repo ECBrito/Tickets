@@ -25,12 +25,13 @@ import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
 import com.example.eventify.model.FilterState
 import com.example.eventify.ui.components.FilterBottomSheet
+import kotlinx.serialization.InternalSerializationApi
 
 // =====================================================================
 // TELA EXPLORE
 // =====================================================================
 
-@OptIn(ExperimentalSharedTransitionApi::class) // <--- Necessário para as animações
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class) // <--- Necessário para as animações
 @Composable
 fun ExploreScreen(
     onEventClick: (String) -> Unit,
@@ -190,6 +191,7 @@ fun ExploreSearchBar(
     )
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun ExploreEventCard(
     event: Event,

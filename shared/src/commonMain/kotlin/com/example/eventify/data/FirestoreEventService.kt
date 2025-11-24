@@ -6,6 +6,7 @@ import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.InternalSerializationApi
 
 private const val EVENTS_COLLECTION = "events"
 
@@ -13,6 +14,7 @@ class FirestoreEventService(
     private val firestore: FirebaseFirestore = Firebase.firestore
 ) {
 
+    @OptIn(InternalSerializationApi::class)
     fun getAllEventsFlow(): Flow<List<Event>> {
         return firestore.collection(EVENTS_COLLECTION)
             .snapshots
@@ -23,6 +25,7 @@ class FirestoreEventService(
             }
     }
 
+    @OptIn(InternalSerializationApi::class)
     suspend fun saveEvent(event: Event) {
         val collectionRef = firestore.collection(EVENTS_COLLECTION)
         if (event.id.isEmpty()) {

@@ -8,13 +8,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.InternalSerializationApi
 
 class MyEventsViewModelKMM(
     private val repository: EventRepository, // <--- Nome corrigido
     private val userId: String
 ) : ViewModel() { // <--- Herança de ViewModel
 
+    @OptIn(InternalSerializationApi::class)
     private val _myEvents = MutableStateFlow<List<Event>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
     val myEvents: StateFlow<List<Event>> = _myEvents.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
@@ -24,6 +27,7 @@ class MyEventsViewModelKMM(
         loadMyEvents()
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun loadMyEvents() {
         viewModelScope.launch {
             _isLoading.value = true

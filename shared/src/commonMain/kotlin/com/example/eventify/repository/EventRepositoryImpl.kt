@@ -1,6 +1,6 @@
 package com.example.eventify.repository
 
-import com.example.eventify.model.Attendee // <--- O IMPORT QUE FALTAVA
+import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.model.Ticket
@@ -26,27 +26,22 @@ class EventRepositoryImpl(
     private val ticketsCollection = firestore.collection("tickets")
     private val usersCollection = firestore.collection("users")
 
-    // --- LEITURA EM TEMPO REAL ---
+    // --- EVENTOS ---
     override val events: Flow<List<Event>> = eventsCollection.snapshots.map { snapshot ->
         snapshot.documents.mapNotNull { doc ->
             try {
-                // Tenta ler manualmente se o automático falhar por causa de tipos misturados
+                // Leitura manual segura para evitar erros de tipo
                 val title = try { doc.get<String>("title") } catch (e: Exception) { "" }
                 val description = try { doc.get<String>("description") } catch (e: Exception) { "" }
                 val location = try { doc.get<String>("location") } catch (e: Exception) { "" }
                 val imageUrl = try { doc.get<String>("imageUrl") } catch (e: Exception) { "" }
                 val dateTime = try { doc.get<String>("dateTime") } catch (e: Exception) { "" }
                 val category = try { doc.get<String>("category") } catch (e: Exception) { "Other" }
-
-                val registeredUserIds = try {
-                    doc.get<List<String>>("registeredUserIds")
-                } catch (e: Exception) { emptyList() }
-
-                val price = try {
-                    doc.get<Double>("price")
-                } catch (e: Exception) {
-                    try { doc.get<Int>("price").toDouble() } catch(e2: Exception) { 0.0 }
-                }
+                val registeredUserIds = try { doc.get<List<String>>("registeredUserIds") } catch (e: Exception) { emptyList() }
+                val price = try { doc.get<Double>("price") } catch (e: Exception) { try { doc.get<Int>("price").toDouble() } catch(e2: Exception) { 0.0 } }
+                // Novos campos (com defaults seguros)
+                val shares = try { doc.get<Int>("shares") } catch (e: Exception) { 0 }
+                val maxCapacity = try { doc.get<Int>("maxCapacity") } catch (e: Exception) { 100 }
 
                 Event(
                     id = doc.id,
@@ -58,81 +53,65 @@ class EventRepositoryImpl(
                     category = category,
                     registeredUserIds = registeredUserIds,
                     price = price,
+                    shares = shares,
+                    maxCapacity = maxCapacity,
                     isRegistered = false,
                     isSaved = false
                 )
-            } catch (e: Exception) {
-                println("Erro ao ler evento: ${e.message}")
-                null
-            }
+            } catch (e: Exception) { null }
         }
     }
 
-    // --- ADICIONAR EVENTO ---
     override suspend fun addEvent(event: Event): Boolean {
         return try {
-            if (event.id.isNotEmpty()) {
-                eventsCollection.document(event.id).set(event, merge = true)
-            } else {
-                eventsCollection.add(event)
-            }
+            if (event.id.isNotEmpty()) eventsCollection.document(event.id).set(event, merge = true)
+            else eventsCollection.add(event)
             true
-        } catch (e: Exception) {
-            println("Erro ao adicionar: ${e.message}")
-            false
-        }
+        } catch (e: Exception) { false }
     }
 
-    // --- APAGAR EVENTO ---
     override suspend fun deleteEvent(eventId: String): Boolean {
         return try {
             eventsCollection.document(eventId).delete()
             true
-        } catch (e: Exception) {
-            println("Erro ao apagar: ${e.message}")
-            false
-        }
+        } catch (e: Exception) { false }
     }
 
-    // --- BUSCAR REGISTADOS ---
     override suspend fun getEventsRegisteredByUser(userId: String): List<Event> {
         return try {
-            val querySnapshot = eventsCollection
-                .where { "registeredUserIds" contains userId }
-                .get()
-
+            val querySnapshot = eventsCollection.where { "registeredUserIds" contains userId }.get()
             querySnapshot.documents.mapNotNull { doc ->
-                try {
-                    val event = doc.data<Event>()
-                    event.copy(id = doc.id, isRegistered = true)
-                } catch (e: Exception) { null }
+                try { doc.data<Event>().copy(id = doc.id, isRegistered = true) } catch (e: Exception) { null }
             }
-        } catch (e: Exception) {
-            emptyList()
-        }
+        } catch (e: Exception) { emptyList() }
     }
 
-    // --- TOGGLE RSVP ---
     override suspend fun toggleEventRegistration(eventId: String, userId: String) {
         try {
             val docRef = eventsCollection.document(eventId)
             val snapshot = docRef.get()
-            val currentUsers = try {
-                snapshot.get<List<String>>("registeredUserIds").toMutableList()
-            } catch (e: Exception) { mutableListOf() }
-
-            if (currentUsers.contains(userId)) {
-                currentUsers.remove(userId)
-            } else {
-                currentUsers.add(userId)
-            }
+            val currentUsers = try { snapshot.get<List<String>>("registeredUserIds").toMutableList() } catch (e: Exception) { mutableListOf() }
+            if (currentUsers.contains(userId)) currentUsers.remove(userId) else currentUsers.add(userId)
             docRef.update("registeredUserIds" to currentUsers)
-        } catch (e: Exception) {
-            println("Erro ao atualizar registo: ${e.message}")
+        } catch (e: Exception) { }
+    }
+
+    override fun searchEvents(query: String, currentList: List<Event>): List<Event> {
+        if (query.isBlank()) return currentList
+        return currentList.filter {
+            it.title.contains(query, ignoreCase = true) || it.location.contains(query, ignoreCase = true)
         }
     }
 
-    // --- UPLOAD DE IMAGEM ---
+    override suspend fun incrementEventShares(eventId: String) {
+        try {
+            val docRef = eventsCollection.document(eventId)
+            val event = docRef.get().data<Event>()
+            docRef.update("shares" to event.shares + 1)
+        } catch (e: Exception) { }
+    }
+
+    // --- IMAGEM ---
     override suspend fun uploadEventImage(imageBytes: ByteArray, fileName: String): String? {
         return try {
             val storageRef = storage.reference.child("event_images/$fileName")
@@ -142,16 +121,7 @@ class EventRepositoryImpl(
         } catch (e: Exception) { null }
     }
 
-    // --- PESQUISA ---
-    override fun searchEvents(query: String, currentList: List<Event>): List<Event> {
-        if (query.isBlank()) return currentList
-        return currentList.filter {
-            it.title.contains(query, ignoreCase = true) ||
-                    it.location.contains(query, ignoreCase = true)
-        }
-    }
-
-    // --- COMPRA DE BILHETES ---
+    // --- BILHETES ---
     override suspend fun buyTickets(userId: String, event: Event, quantity: Int): Boolean {
         return try {
             val batch = firestore.batch()
@@ -175,7 +145,6 @@ class EventRepositoryImpl(
         } catch (e: Exception) { false }
     }
 
-    // --- MEUS BILHETES ---
     override suspend fun getUserTickets(userId: String): List<Ticket> {
         return try {
             val snapshot = ticketsCollection.where { "userId" equalTo userId }.get()
@@ -197,32 +166,35 @@ class EventRepositoryImpl(
         } catch (e: Exception) { emptyList() }
     }
 
-    // --- TRANSFERÊNCIA ---
+    override suspend fun getTicketsForEvent(eventId: String): List<Ticket> {
+        return try {
+            val snapshot = ticketsCollection.where { "eventId" equalTo eventId }.get()
+            snapshot.documents.mapNotNull { doc ->
+                try { doc.data<Ticket>().copy(id = doc.id) } catch (e: Exception) { null }
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
     override suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean {
         return try {
             val userQuery = usersCollection.where { "email" equalTo recipientEmail }.get()
             if (userQuery.documents.isEmpty()) return false
-
             val recipientId = userQuery.documents.first().id
             val ticketDoc = ticketsCollection.document(ticketId)
             val ticketSnapshot = ticketDoc.get()
-
             if (!ticketSnapshot.exists) return false
             val ownerId = ticketSnapshot.get<String>("userId")
             if (ownerId != currentUserId) return false
-
             ticketDoc.update("userId" to recipientId)
             true
         } catch (e: Exception) { false }
     }
 
-    // --- VALIDAÇÃO ---
     override suspend fun validateTicket(ticketId: String): TicketValidationResult {
         return try {
             val docRef = ticketsCollection.document(ticketId)
             val snapshot = docRef.get()
             if (!snapshot.exists) return TicketValidationResult.INVALID
-
             val isValid = snapshot.get<Boolean>("isValid")
             if (isValid) {
                 docRef.update("isValid" to false)
@@ -230,57 +202,20 @@ class EventRepositoryImpl(
             } else {
                 TicketValidationResult.ALREADY_USED
             }
-        } catch (e: Exception) {
-            TicketValidationResult.ERROR
-        }
+        } catch (e: Exception) { TicketValidationResult.ERROR }
     }
 
-    // --- LISTA DE PARTICIPANTES (ATTENDEES) ---
+    // --- OUTROS ---
     override suspend fun getEventAttendees(eventId: String): List<Attendee> {
         return try {
-            // 1. Buscar todos os bilhetes deste evento
             val ticketsSnapshot = ticketsCollection.where { "eventId" equalTo eventId }.get()
-
-            // Mapeia manualmente para evitar erros de serialização
-            val tickets = ticketsSnapshot.documents.mapNotNull { doc ->
-                try {
-                    Ticket(
-                        id = doc.id,
-                        userId = doc.get("userId"),
-                        isValid = doc.get("isValid")
-                    )
-                } catch (e:Exception) { null }
-            }
-
-            // 2. Para cada bilhete, buscar os dados do utilizador
+            val tickets = ticketsSnapshot.documents.mapNotNull { doc -> try { Ticket(id = doc.id, userId = doc.get("userId"), isValid = doc.get("isValid")) } catch (e:Exception) { null } }
             tickets.mapNotNull { ticket ->
                 val userProfile = getUserProfile(ticket.userId)
-
-                if (userProfile != null) {
-                    Attendee(
-                        ticketId = ticket.id,
-                        userId = userProfile.id,
-                        name = if (userProfile.name.isNotBlank()) userProfile.name else "User",
-                        email = userProfile.email,
-                        photoUrl = userProfile.photoUrl,
-                        isCheckedIn = !ticket.isValid // Se isValid=false, Check-in feito
-                    )
-                } else {
-                    // Fallback se user não tiver perfil criado
-                    Attendee(
-                        ticketId = ticket.id,
-                        userId = ticket.userId,
-                        name = "Guest User",
-                        email = "No email",
-                        photoUrl = "",
-                        isCheckedIn = !ticket.isValid
-                    )
-                }
+                if (userProfile != null) Attendee(ticket.id, userProfile.id, if (userProfile.name.isNotBlank()) userProfile.name else "User", userProfile.email, userProfile.photoUrl, !ticket.isValid)
+                else Attendee(ticket.id, ticket.userId, "Guest", "No email", "", !ticket.isValid)
             }
-        } catch (e: Exception) {
-            println("Erro ao buscar attendees: ${e.message}")
-            emptyList()
-        }
+        } catch (e: Exception) { emptyList() }
     }
 
     override suspend fun manualCheckIn(ticketId: String): Boolean {
@@ -290,17 +225,10 @@ class EventRepositoryImpl(
         } catch (e: Exception) { false }
     }
 
-    // --- COMENTÁRIOS ---
     override fun getComments(eventId: String): Flow<List<Comment>> {
-        return eventsCollection.document(eventId).collection("comments")
-            .snapshots
-            .map { snapshot ->
-                snapshot.documents.mapNotNull { doc ->
-                    try {
-                        doc.data<Comment>().copy(id = doc.id)
-                    } catch (e: Exception) { null }
-                }.sortedByDescending { it.timestamp }
-            }
+        return eventsCollection.document(eventId).collection("comments").snapshots.map { snapshot ->
+            snapshot.documents.mapNotNull { doc -> try { doc.data<Comment>().copy(id = doc.id) } catch (e: Exception) { null } }.sortedByDescending { it.timestamp }
+        }
     }
 
     override suspend fun addComment(eventId: String, comment: Comment): Boolean {
@@ -310,7 +238,6 @@ class EventRepositoryImpl(
         } catch (e: Exception) { false }
     }
 
-    // --- PERFIL ---
     override suspend fun getUserProfile(userId: String): UserProfile? {
         return try {
             val doc = usersCollection.document(userId).get()
@@ -335,16 +262,12 @@ class EventRepositoryImpl(
     }
 
     override suspend fun updateUserFcmToken(userId: String, token: String) {
-        try {
-            usersCollection.document(userId).update("fcmToken" to token)
-        } catch (e: Exception) { }
+        try { usersCollection.document(userId).update("fcmToken" to token) } catch (e: Exception) { }
     }
 
-    // --- FAVORITOS ---
     override fun getFavoriteEventIds(userId: String): Flow<List<String>> {
         if (userId.isBlank()) return flowOf(emptyList())
-        return usersCollection.document(userId).collection("favorites")
-            .snapshots
+        return usersCollection.document(userId).collection("favorites").snapshots
             .map { snapshot -> snapshot.documents.map { it.id } }
             .catch { emit(emptyList()) }
     }
@@ -356,4 +279,6 @@ class EventRepositoryImpl(
             if (snapshot.exists) favDoc.delete() else favDoc.set(mapOf("savedAt" to Clock.System.now().toEpochMilliseconds()))
         } catch (e: Exception) { }
     }
+
+
 }

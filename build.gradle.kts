@@ -10,6 +10,7 @@ plugins {
 
     // Plugin do Google Services (Firebase)
     id("com.google.gms.google-services") version "4.4.1" apply false
+
 }
 
 allprojects {

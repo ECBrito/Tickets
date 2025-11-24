@@ -28,6 +28,7 @@ import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
 import com.example.eventify.ui.theme.EventifyTheme
 import com.example.eventify.viewmodels.OrganizerViewModel
+import kotlinx.serialization.InternalSerializationApi
 
 // --- Theme Colors ---
 private val BgDark = Color(0xFF0B0A12)
@@ -37,6 +38,7 @@ private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
 private val GreenGrowth = Color(0xFF00E096)
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun OrganizerDashboardScreen(
     onCreateEventClick: () -> Unit,
@@ -206,6 +208,7 @@ fun StatCardSmall(modifier: Modifier, icon: ImageVector, title: String, value: S
     }
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun HighlightEventCard(
     event: Event,
@@ -267,6 +270,7 @@ fun HighlightEventCard(
     }
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun DashboardEventItem(
     event: Event,

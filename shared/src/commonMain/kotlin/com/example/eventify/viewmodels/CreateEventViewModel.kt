@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.serialization.InternalSerializationApi
 
 class CreateEventViewModel(
     private val repository: EventRepository,
@@ -18,6 +19,7 @@ class CreateEventViewModel(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    @OptIn(InternalSerializationApi::class)
     fun createEvent(
         title: String,
         description: String,

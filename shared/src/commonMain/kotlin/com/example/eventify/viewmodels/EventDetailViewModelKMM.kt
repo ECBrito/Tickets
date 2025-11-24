@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.serialization.InternalSerializationApi
 
 class EventDetailViewModelKMM(
     private val repository: EventRepository,
@@ -19,7 +20,9 @@ class EventDetailViewModelKMM(
     private val userId: String
 ) : ViewModel() {
 
+    @OptIn(InternalSerializationApi::class)
     private val _event = MutableStateFlow<Event?>(null)
+    @OptIn(InternalSerializationApi::class)
     val event: StateFlow<Event?> = _event.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
@@ -34,6 +37,7 @@ class EventDetailViewModelKMM(
         observeComments() // <--- Começa a escutar comentários
     }
 
+    @OptIn(InternalSerializationApi::class)
     private fun observeEvent() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -81,7 +85,15 @@ class EventDetailViewModelKMM(
             repository.addComment(eventId, newComment)
         }
     }
+    fun registerShare() {
+        viewModelScope.launch {
+            repository.incrementEventShares(eventId)
+            // O Flow do evento atualiza-se automaticamente,
+            // por isso o número de shares vai subir na UI sozinho.
+        }
+    }
 
+    @OptIn(InternalSerializationApi::class)
     val isRegistered: Boolean
         get() = _event.value?.isRegistered == true
 }

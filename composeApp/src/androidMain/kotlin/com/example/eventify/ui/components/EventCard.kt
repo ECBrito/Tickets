@@ -18,6 +18,7 @@ import coil.compose.AsyncImage
 import com.example.eventify.model.Event
 import com.example.eventify.ui.theme.EventifyTheme
 import kotlinx.datetime.LocalDateTime
+import kotlinx.serialization.InternalSerializationApi
 
 // Helper para formatar data
 private fun formatDateTime(dateTime: String): String {
@@ -31,6 +32,7 @@ private fun formatDateTime(dateTime: String): String {
     return "$day $month, $hour:$minute"
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun EventCard(
     event: Event,

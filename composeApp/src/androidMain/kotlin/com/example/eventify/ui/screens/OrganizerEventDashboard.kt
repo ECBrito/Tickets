@@ -27,6 +27,7 @@ import com.example.eventify.di.AppModule
 import com.example.eventify.viewmodels.EventStats
 import com.example.eventify.viewmodels.OrganizerEventDashboardViewModel
 import com.example.eventify.viewmodels.TimeRange
+import kotlinx.serialization.InternalSerializationApi
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -39,7 +40,7 @@ private val TextGray = Color(0xFF8F9BB3)
 private val SuccessGreen = Color(0xFF00E096)
 private val ErrorRed = Color(0xFFFF3D71)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, InternalSerializationApi::class)
 @Composable
 fun OrganizerEventDashboard(
     eventId: String,

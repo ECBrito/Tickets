@@ -31,12 +31,13 @@ import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
 import com.example.eventify.model.EventCategory
 import com.example.eventify.ui.components.IconButtonWithBadge
+import kotlinx.serialization.InternalSerializationApi
 
 // Cores
 private val AccentPurple = Color(0xFF7B61FF)
 private val ChipBg = Color(0xFF1E1E2C)
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun HomeScreenContent(
     onEventClick: (String) -> Unit,
@@ -131,7 +132,7 @@ fun HomeScreenContent(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun FeaturedEventsCarousel(
     events: List<Event>,
@@ -147,7 +148,7 @@ fun FeaturedEventsCarousel(
 }
 
 // Este é o cartão vertical da lista
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun EventCard(
     event: Event,
@@ -232,6 +233,7 @@ fun SectionHeader(title: String) {
     Text(text = title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
 }
 
+@OptIn(InternalSerializationApi::class)
 @Composable
 fun FeatureCard(event: Event, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.width(280.dp), shape = MaterialTheme.shapes.medium, colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {

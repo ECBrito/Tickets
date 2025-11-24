@@ -14,8 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.eventify.di.AppModule
 import com.example.eventify.ui.components.EventCard // O teu componente rico
+import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, InternalSerializationApi::class)
 @Composable
 fun MyEvents( // O nome deve ser MyEvents para bater certo com o MainScreen
     userId: String, // Mantemos o param mas usamos o do AppModule internamente
