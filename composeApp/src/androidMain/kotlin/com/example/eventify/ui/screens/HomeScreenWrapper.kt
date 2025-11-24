@@ -1,5 +1,8 @@
 package com.example.eventify.ui.screens
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,36 +29,34 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
-import com.example.eventify.model.EventCategory // <--- Importante
-import com.example.eventify.ui.components.EventCard
+import com.example.eventify.model.EventCategory
 import com.example.eventify.ui.components.IconButtonWithBadge
 
 // Cores
 private val AccentPurple = Color(0xFF7B61FF)
 private val ChipBg = Color(0xFF1E1E2C)
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun HomeScreenContent(
     onEventClick: (String) -> Unit,
     onSeeAllClick: () -> Unit,
     onSearchClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    // SCOPES DE ANIMAÇÃO
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
 ) {
     val viewModel = remember { AppModule.provideHomeViewModel() }
-
     val featuredEvents by viewModel.featuredEvents.collectAsState()
     val upcomingEvents by viewModel.upcomingEvents.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState() // <--- Estado da Categoria
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
         topBar = {
-            HomeTopBar(
-                onSearchClick = onSearchClick,
-                onNotificationsClick = onNotificationsClick,
-                onProfileClick = onProfileClick
-            )
+            HomeTopBar(onSearchClick, onNotificationsClick, onProfileClick)
         },
         containerColor = Color(0xFF0B0A12)
     ) { innerPadding ->
@@ -69,20 +70,19 @@ fun HomeScreenContent(
         ) {
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // --- 1. Featured (Destaques) ---
+            // --- 1. Featured ---
             item {
                 SectionHeader("Featured This Week")
                 Spacer(modifier = Modifier.height(16.dp))
-
                 if (isLoading) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        items(2) { FeatureCardPlaceholder() }
-                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) { items(2) { FeatureCardPlaceholder() } }
                 } else {
                     if (featuredEvents.isNotEmpty()) {
                         FeaturedEventsCarousel(
                             events = featuredEvents,
-                            onEventClick = onEventClick
+                            onEventClick = onEventClick,
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            sharedTransitionScope = sharedTransitionScope
                         )
                     } else {
                         Text("No featured events.", color = Color.Gray)
@@ -90,15 +90,12 @@ fun HomeScreenContent(
                 }
             }
 
-            // --- 2. CATEGORIAS (NOVO) ---
+            // --- 2. Categorias ---
             item {
-                CategoryFilterSection(
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = { viewModel.selectCategory(it) }
-                )
+                CategoryFilterSection(selectedCategory) { viewModel.selectCategory(it) }
             }
 
-            // --- 3. Upcoming (Próximos - Filtrado) ---
+            // --- 3. Upcoming ---
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -106,109 +103,119 @@ fun HomeScreenContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SectionHeader("Upcoming Events")
-                    TextButton(onClick = onSeeAllClick) {
-                        Text("See All", color = AccentPurple)
-                    }
+                    TextButton(onClick = onSeeAllClick) { Text("See All", color = AccentPurple) }
                 }
             }
 
             if (isLoading) {
-                items(3) {
-                    EventCardPlaceholder()
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+                items(3) { EventCardPlaceholder(); Spacer(modifier = Modifier.height(12.dp)) }
             } else {
                 if (upcomingEvents.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No events found for this category.", color = Color.Gray)
-                        }
-                    }
+                    item { Box(Modifier.padding(24.dp)) { Text("No events found.", color = Color.Gray) } }
                 } else {
                     items(upcomingEvents) { event ->
+                        // EventCard "animável"
                         EventCard(
                             event = event,
                             onClick = onEventClick,
-                            onSave = { viewModel.toggleSave(event.id) }
+                            onSave = { viewModel.toggleSave(event.id) },
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            sharedTransitionScope = sharedTransitionScope
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
-
             item { Spacer(modifier = Modifier.height(20.dp)) }
         }
     }
 }
 
-// --- NOVO COMPONENTE: Filtros de Categoria ---
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun CategoryFilterSection(
-    selectedCategory: EventCategory?,
-    onCategorySelected: (EventCategory?) -> Unit
+fun FeaturedEventsCarousel(
+    events: List<Event>,
+    onEventClick: (String) -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
 ) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Opção "All"
-        item {
-            CategoryChip(
-                label = "All",
-                isSelected = selectedCategory == null,
-                onClick = { onCategorySelected(null) }
-            )
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(end = 16.dp)) {
+        items(events) { event ->
+            FeatureCard(event, onClick = { onEventClick(event.id) })
         }
+    }
+}
 
-        // Opções do Enum
-        items(EventCategory.entries) { category ->
-            CategoryChip(
-                label = category.name.lowercase().replaceFirstChar { it.titlecase() },
-                isSelected = selectedCategory == category,
-                onClick = { onCategorySelected(category) }
-            )
+// Este é o cartão vertical da lista
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun EventCard(
+    event: Event,
+    onClick: (String) -> Unit,
+    onSave: (String) -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
+) {
+    with(sharedTransitionScope) { // Entra no scope para usar Modifier.sharedElement
+        Card(
+            onClick = { onClick(event.id) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
+        ) {
+            Column {
+                // A IMAGEM QUE VAI CRESCER
+                AsyncImage(
+                    model = event.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        // CORREÇÃO AQUI: Mudei 'state' para 'sharedContentState'
+                        .sharedElement(
+                            sharedContentState = rememberSharedContentState(key = "image-${event.id}"),
+                            animatedVisibilityScope = animatedVisibilityScope
+                        )
+                        .clip(MaterialTheme.shapes.medium)
+                )
+
+                Column(Modifier.padding(16.dp)) {
+                    Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                    Spacer(Modifier.height(4.dp))
+                    Text(event.dateTime.take(10), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                }
+            }
+        }
+    }
+}
+
+// --- RESTANTES COMPONENTES ---
+
+@Composable
+fun CategoryFilterSection(selectedCategory: EventCategory?, onCategorySelected: (EventCategory?) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { CategoryChip("All", selectedCategory == null) { onCategorySelected(null) } }
+        items(EventCategory.entries) { cat ->
+            CategoryChip(cat.name.lowercase().replaceFirstChar { it.titlecase() }, selectedCategory == cat) { onCategorySelected(cat) }
         }
     }
 }
 
 @Composable
-fun CategoryChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
+fun CategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         color = if (isSelected) AccentPurple else ChipBg,
-        shape = RoundedCornerShape(50), // Redondo
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .border(
-                width = 1.dp,
-                color = if (isSelected) Color.Transparent else Color.Gray.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(50)
-            )
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.clickable(onClick = onClick).border(1.dp, if (isSelected) Color.Transparent else Color.Gray.copy(0.3f), RoundedCornerShape(50))
     ) {
-        Text(
-            text = label,
-            color = if (isSelected) Color.White else Color.Gray,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-        )
+        Text(label, color = if (isSelected) Color.White else Color.Gray, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
     }
 }
-
-// --- OUTROS COMPONENTES (Mantidos) ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeTopBar(
-    onSearchClick: () -> Unit,
-    onNotificationsClick: () -> Unit,
-    onProfileClick: () -> Unit,
-) {
+fun HomeTopBar(onSearchClick: () -> Unit, onNotificationsClick: () -> Unit, onProfileClick: () -> Unit) {
     TopAppBar(
         title = { Text("Eventify", fontWeight = FontWeight.Bold, color = Color.White) },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0A12)),
@@ -226,19 +233,12 @@ fun SectionHeader(title: String) {
 }
 
 @Composable
-fun FeaturedEventsCarousel(events: List<Event>, onEventClick: (String) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(end = 16.dp)) {
-        items(events) { event -> FeatureCard(event, onClick = { onEventClick(event.id) }) }
-    }
-}
-
-@Composable
 fun FeatureCard(event: Event, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.width(280.dp), shape = MaterialTheme.shapes.medium, colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
         Column {
             AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(160.dp).clip(MaterialTheme.shapes.medium))
             Column(Modifier.padding(16.dp)) {
-                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                 Spacer(Modifier.height(4.dp))
                 Text(event.dateTime.take(10), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             }
