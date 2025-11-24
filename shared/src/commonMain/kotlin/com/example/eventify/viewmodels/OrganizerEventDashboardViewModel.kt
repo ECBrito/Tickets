@@ -103,22 +103,21 @@ class OrganizerEventDashboardViewModel(
 
         // --- CÁLCULOS ---
 
-        // 1. Attendees (Total de bilhetes vendidos no período)
+        // 1. Attendees
         val currentCount = ticketsCurrentPeriod.size
         val previousCount = ticketsPreviousPeriod.size
         val attendeesGrowth = calculateGrowth(currentCount.toDouble(), previousCount.toDouble())
 
-        // 2. Sales (Dinheiro ganho: Bilhetes * Preço)
+        // 2. Sales
         val currentSales = currentCount * event.price
         val previousSales = previousCount * event.price
         val salesGrowth = calculateGrowth(currentSales, previousSales)
 
-        // 3. Capacity (Sempre baseada no total ABSOLUTO)
+        // 3. Capacity
         val totalSold = allTickets.size
 
-        // 4. Shares (Se adicionaste o campo 'shares' ao Evento no passo anterior)
-        // Se não adicionaste, usa 0 ou um valor mock
-        val currentShares = 0 // event.shares
+        // 4. Shares (CORREÇÃO: LER DO EVENTO REAL)
+        val currentShares = event.shares
 
         _stats.value = EventStats(
             totalAttendees = currentCount,
@@ -126,14 +125,13 @@ class OrganizerEventDashboardViewModel(
             ticketSales = currentSales,
             salesGrowth = salesGrowth,
             capacityCurrent = totalSold,
-            // Se ainda não atualizaste o Event.kt com maxCapacity, usa 100 como default
-            capacityMax = 100, // event.maxCapacity
+            capacityMax = event.maxCapacity, // Garante que o Event.kt tem este campo
 
-            // Placeholders (exigiriam tabela de Analytics separada)
+            // Placeholders
             engagementScore = 8.5,
             engagementGrowth = 1.2,
-            socialShares = currentShares,
-            sharesGrowth = 0.0
+            socialShares = currentShares, // <-- AGORA ESTÁ LIGADO
+            sharesGrowth = 0.0 // Para calcular crescimento precisarias de um histórico de partilhas por data
         )
     }
 
