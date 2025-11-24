@@ -45,4 +45,6 @@ interface EventRepository {
     suspend fun toggleFavorite(userId: String, eventId: String)
 
     suspend fun updateUserFcmToken(userId: String, token: String)
+
+    suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean
 }

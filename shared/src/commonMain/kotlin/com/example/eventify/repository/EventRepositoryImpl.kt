@@ -9,11 +9,13 @@ import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.storage.Data
 import dev.gitlive.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
-import kotlinx.serialization.InternalSerializationApi // Import necessário
+import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(InternalSerializationApi::class) // Corrige os erros de "Needs opt-in"
+@OptIn(InternalSerializationApi::class)
 class EventRepositoryImpl(
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage
@@ -157,7 +159,6 @@ class EventRepositoryImpl(
     // --- MEUS BILHETES ---
     override suspend fun getUserTickets(userId: String): List<Ticket> {
         return try {
-            // CORREÇÃO DA QUERY: Sintaxe lambda correta
             val snapshot = ticketsCollection.where { "userId" equalTo userId }.get()
 
             snapshot.documents.mapNotNull { doc ->
@@ -172,6 +173,33 @@ class EventRepositoryImpl(
         } catch (e: Exception) {
             println("Erro fatal ao buscar tickets: ${e.message}")
             emptyList()
+        }
+    }
+
+    // --- TRANSFERÊNCIA DE BILHETES ---
+    override suspend fun transferTicket(ticketId: String, currentUserId: String, recipientEmail: String): Boolean {
+        return try {
+            val userQuery = usersCollection.where { "email" equalTo recipientEmail }.get()
+
+            if (userQuery.documents.isEmpty()) {
+                return false
+            }
+
+            val recipientId = userQuery.documents.first().id
+
+            val ticketDoc = ticketsCollection.document(ticketId)
+            val ticketSnapshot = ticketDoc.get()
+
+            if (!ticketSnapshot.exists) return false
+            val ownerId = ticketSnapshot.get<String>("userId")
+
+            if (ownerId != currentUserId) return false
+
+            ticketDoc.update("userId" to recipientId)
+            true
+        } catch (e: Exception) {
+            println("Erro na transferência: ${e.message}")
+            false
         }
     }
 
@@ -225,23 +253,15 @@ class EventRepositoryImpl(
     override suspend fun getUserProfile(userId: String): UserProfile? {
         return try {
             val doc = usersCollection.document(userId).get()
-            if (doc.exists) {
-                doc.data<UserProfile>()
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
-        }
+            if (doc.exists) doc.data<UserProfile>() else null
+        } catch (e: Exception) { null }
     }
 
     override suspend fun updateUserProfile(userId: String, profile: UserProfile): Boolean {
         return try {
             usersCollection.document(userId).set(profile, merge = true)
             true
-        } catch (e: Exception) {
-            false
-        }
+        } catch (e: Exception) { false }
     }
 
     override suspend fun uploadProfileImage(imageBytes: ByteArray, userId: String): String? {
@@ -250,42 +270,34 @@ class EventRepositoryImpl(
             val dataObj = Data(imageBytes)
             storageRef.putData(dataObj)
             storageRef.getDownloadUrl()
+        } catch (e: Exception) { null }
+    }
+
+    // --- NOTIFICAÇÕES (FCM) ---
+    // Esta foi a função que faltava!
+    override suspend fun updateUserFcmToken(userId: String, token: String) {
+        try {
+            usersCollection.document(userId).update("fcmToken" to token)
         } catch (e: Exception) {
-            null
+            println("Erro ao guardar token FCM: ${e.message}")
         }
     }
 
+    // --- FAVORITOS ---
     override fun getFavoriteEventIds(userId: String): Flow<List<String>> {
-        // Escuta a coleção: users/{userId}/favorites
-        return usersCollection.document(userId).collection("favorites").snapshots.map { snapshot ->
-            snapshot.documents.map { it.id } // Retorna apenas os IDs dos eventos
-        }
+        if (userId.isBlank()) return flowOf(emptyList())
+
+        return usersCollection.document(userId).collection("favorites")
+            .snapshots
+            .map { snapshot -> snapshot.documents.map { it.id } }
+            .catch { emit(emptyList()) }
     }
 
     override suspend fun toggleFavorite(userId: String, eventId: String) {
         try {
             val favDoc = usersCollection.document(userId).collection("favorites").document(eventId)
             val snapshot = favDoc.get()
-
-            if (snapshot.exists) {
-                // Se já existe, remove (Desmarcar)
-                favDoc.delete()
-            } else {
-                // Se não existe, cria (Marcar) - Guardamos timestamp
-                val data = mapOf("savedAt" to Clock.System.now().toEpochMilliseconds())
-                favDoc.set(data)
-            }
-        } catch (e: Exception) {
-            println("Erro ao mudar favorito: ${e.message}")
-        }
-    }
-
-    override suspend fun updateUserFcmToken(userId: String, token: String) {
-        try {
-            // Atualiza apenas o campo fcmToken, sem apagar o resto
-            usersCollection.document(userId).update("fcmToken" to token)
-        } catch (e: Exception) {
-            println("Erro ao guardar token FCM: ${e.message}")
-        }
+            if (snapshot.exists) favDoc.delete() else favDoc.set(mapOf("savedAt" to Clock.System.now().toEpochMilliseconds()))
+        } catch (e: Exception) { println("Erro favorito: ${e.message}") }
     }
 }

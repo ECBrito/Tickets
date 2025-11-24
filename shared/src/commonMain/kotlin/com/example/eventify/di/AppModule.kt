@@ -67,4 +67,8 @@ object AppModule {
     fun provideEditEventViewModel(eventId: String): EditEventViewModel {
         return EditEventViewModel(eventRepository, eventId)
     }
+
+    fun provideTicketDetailViewModel(ticketId: String): TicketDetailViewModel {
+        return TicketDetailViewModel(eventRepository, ticketId, currentUserId)
+    }
 }
