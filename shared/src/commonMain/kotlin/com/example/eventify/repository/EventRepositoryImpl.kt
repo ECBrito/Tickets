@@ -3,6 +3,7 @@ package com.example.eventify.repository
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.PromoCode
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
@@ -280,5 +281,24 @@ class EventRepositoryImpl(
         } catch (e: Exception) { }
     }
 
+    private val promoCodesCollection = firestore.collection("promocodes")
 
+    // ...
+
+    override suspend fun verifyPromoCode(code: String): PromoCode? {
+        return try {
+            // O ID do documento no Firebase será o próprio código (ex: "SAVE10")
+            val doc = promoCodesCollection.document(code.uppercase()).get()
+
+            if (doc.exists) {
+                val promo = doc.data<PromoCode>()
+                if (promo.isActive) promo else null
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            println("Erro ao verificar promo: ${e.message}")
+            null
+        }
+    }
 }

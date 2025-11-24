@@ -3,6 +3,7 @@ package com.example.eventify.repository
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.PromoCode
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
@@ -52,4 +53,6 @@ interface EventRepository {
     // --- PARTILHAS (SOCIAL) ---
     // Esta é a função que estava a dar erro de override
     suspend fun incrementEventShares(eventId: String)
+
+    suspend fun verifyPromoCode(code: String): PromoCode?
 }
