@@ -2,6 +2,7 @@ package com.example.eventify.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.CalendarContract // <--- Import Importante
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -9,15 +10,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-// 1. IMPORTS CRÍTICOS ADICIONADOS:
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +44,10 @@ import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.ui.Screen
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 
+// Cores específicas do design
 private val BgDark = Color(0xFF0B0A12)
 private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
@@ -118,9 +127,8 @@ fun EventDetailScreen(
                         }
                         2 -> { // Comments
                             item { CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) }); Spacer(modifier = Modifier.height(24.dp)) }
-
                             if (comments.isEmpty()) {
-                                item { Text("No comments yet.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
+                                item { Text("No comments yet. Be the first!", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
                             } else {
                                 items(comments) { comment ->
                                     CommentItem(comment)
@@ -136,6 +144,8 @@ fun EventDetailScreen(
     }
 }
 
+// --- COMPONENTES DE INTERFACE ---
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun HeaderSection(
@@ -147,16 +157,13 @@ fun HeaderSection(
     val context = LocalContext.current
 
     with(sharedTransitionScope) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(350.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
             AsyncImage(
                 model = event.imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    // 2. CORREÇÃO: 'state' mudou para 'sharedContentState'
                     .sharedElement(
                         sharedContentState = rememberSharedContentState(key = "image-${event.id}"),
                         animatedVisibilityScope = animatedVisibilityScope
@@ -165,10 +172,7 @@ fun HeaderSection(
 
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextWhite)
                 }
@@ -195,41 +199,62 @@ fun HeaderSection(
 }
 
 @Composable
-fun CommentItem(comment: Comment) {
-    Row(
-        // 3. CORREÇÃO: Usar verticalAlignment em vez de crossAxisAlignment
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(horizontal = 20.dp)
-    ) {
-        Surface(shape = CircleShape, color = ChipBg, modifier = Modifier.size(40.dp)) {
-            if (comment.userPhotoUrl != null) AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop) else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium); Spacer(modifier = Modifier.width(8.dp)); Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall) }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-// --- RESTANTES COMPONENTES (Iguais) ---
-
-@Composable
 fun InfoSection(event: Event) {
+    val context = LocalContext.current
+
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        // 1. DATA (AGORA É CLICÁVEL PARA ADICIONAR AO CALENDÁRIO)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable {
+                    try {
+                        // Tenta converter a data para milissegundos
+                        val startMillis = LocalDateTime.parse(event.dateTime)
+                            .toInstant(TimeZone.currentSystemDefault())
+                            .toEpochMilliseconds()
+
+                        val endMillis = startMillis + (2 * 60 * 60 * 1000) // Duração padrão de 2 horas
+
+                        // Cria o Intent para o Calendário
+                        val intent = Intent(Intent.ACTION_INSERT).apply {
+                            data = CalendarContract.Events.CONTENT_URI
+                            putExtra(CalendarContract.Events.TITLE, event.title)
+                            putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
+                            putExtra(CalendarContract.Events.DESCRIPTION, event.description)
+                            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
+                            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // Se a data não for válida ou não houver app de calendário
+                        println("Erro ao abrir calendário: ${e.message}")
+                    }
+                }
+                .padding(vertical = 8.dp) // Área de toque maior
+        ) {
             Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
-            Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+            Column {
+                Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                Text("Add to Calendar", style = MaterialTheme.typography.labelSmall, color = AccentPurple) // Indicação visual
+            }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 2. LOCALIZAÇÃO
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
         }
+
         Spacer(modifier = Modifier.height(24.dp))
+
+        // 3. ORGANIZADOR
         Row(modifier = Modifier.border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
             Spacer(modifier = Modifier.width(12.dp))
@@ -237,6 +262,8 @@ fun InfoSection(event: Event) {
         }
     }
 }
+
+// --- (MANTÉM OS OUTROS COMPONENTES IGUAIS: TabsSection, AboutSection, LocationMapSection, etc.) ---
 
 @Composable
 fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
@@ -306,6 +333,21 @@ fun CommentInputSection(onSendComment: (String) -> Unit) {
 }
 
 @Composable
+fun CommentItem(comment: Comment) {
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(horizontal = 20.dp)) {
+        Surface(shape = CircleShape, color = ChipBg, modifier = Modifier.size(40.dp)) {
+            if (comment.userPhotoUrl != null) AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop) else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) { Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium); Spacer(modifier = Modifier.width(8.dp)); Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall) }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
 fun BottomActionSection(isRegistered: Boolean, onRsvpClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth().background(BgDark).padding(20.dp)) {
         Button(onClick = onRsvpClick, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isRegistered) Color.Gray else AccentPurple, contentColor = if (isRegistered) TextWhite else AccentPurpleDark)) {
@@ -326,4 +368,4 @@ private fun formatDateTime(dateTime: String): String {
 }
 
 // Helper para alpha no modifier
-fun Modifier.alpha(alpha: Float) = this // Simples para não dar erro, AsyncImage gere o alpha
+fun Modifier.alpha(alpha: Float) = this
