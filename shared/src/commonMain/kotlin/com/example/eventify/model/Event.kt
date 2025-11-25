@@ -12,6 +12,7 @@ data class Event(
     val location: String = "",
     val imageUrl: String = "",
     val dateTime: String = "",
+    val endDateTime: String = "", // <--- Data de Fim (NOVO)
     val category: String = "",
     val registeredUsers: List<String> = emptyList(),
     val isRegistered: Boolean = false,

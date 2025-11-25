@@ -25,13 +25,12 @@ class CreateEventViewModel(
         description: String,
         location: String,
         imageUrl: String?,
-        imageBytes: ByteArray?, // Imagem Real
-        dateTime: String,
+        imageBytes: ByteArray?,
+        dateTime: String,    // Data de Início
+        endDateTime: String, // <--- NOVO PARÂMETRO (Data de Fim)
         category: String,
-        // --- NOVOS CAMPOS PARA O DASHBOARD ---
-        price: Double = 0.0,     // Preço do bilhete (padrão 0 se não for passado)
-        maxCapacity: Int = 100,  // Lotação máxima (padrão 100)
-        // -------------------------------------
+        price: Double = 0.0,
+        maxCapacity: Int = 100,
         onSuccess: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
@@ -46,37 +45,32 @@ class CreateEventViewModel(
             try {
                 var finalImageUrl = ""
 
-                // --- PASSO 1: UPLOAD DA IMAGEM ---
+                // 1. UPLOAD
                 if (imageBytes != null) {
                     val fileName = "${Clock.System.now().toEpochMilliseconds()}.jpg"
                     val uploadedUrl = repository.uploadEventImage(imageBytes, fileName)
-
-                    if (uploadedUrl != null) {
-                        finalImageUrl = uploadedUrl
-                    } else {
-                        println("Aviso: Upload da imagem falhou.")
-                    }
+                    if (uploadedUrl != null) finalImageUrl = uploadedUrl
                 }
 
-                // --- PASSO 2: CRIAR O OBJETO EVENTO ---
+                // 2. CRIAR EVENTO
                 val event = Event(
-                    id = "", // Gerado pelo Firestore
+                    id = "",
                     title = title,
                     description = description,
                     location = location,
                     imageUrl = finalImageUrl,
                     dateTime = dateTime,
+                    endDateTime = endDateTime, // <--- GRAVAR NA BD
                     category = category,
                     organizerId = organizerId,
                     registeredUserIds = listOf(organizerId),
                     isRegistered = true,
-                    // --- DADOS FINANCEIROS E ESTATÍSTICOS ---
                     price = price,
                     maxCapacity = maxCapacity,
-                    shares = 0 // Inicia com 0 partilhas
+                    shares = 0
                 )
 
-                // --- PASSO 3: GRAVAR ---
+                // 3. GRAVAR
                 val success = repository.addEvent(event)
 
                 if (success) {

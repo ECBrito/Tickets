@@ -18,6 +18,7 @@ class EditEventViewModel(
 
     @OptIn(InternalSerializationApi::class)
     private val _event = MutableStateFlow<Event?>(null)
+
     @OptIn(InternalSerializationApi::class)
     val event: StateFlow<Event?> = _event.asStateFlow()
 
@@ -31,7 +32,6 @@ class EditEventViewModel(
     @OptIn(InternalSerializationApi::class)
     private fun loadEvent() {
         viewModelScope.launch {
-            // Procura o evento na lista (ou podia fazer um getById direto no repo)
             repository.events.collect { events ->
                 _event.value = events.find { it.id == eventId }
                 _isLoading.value = false
@@ -44,9 +44,12 @@ class EditEventViewModel(
         title: String,
         description: String,
         location: String,
-        dateTime: String,
+        dateTime: String,     // Start
+        endDateTime: String,  // End <--- NOVO
         category: String,
-        imageBytes: ByteArray?, // Nova imagem (se houver)
+        price: Double,
+        maxCapacity: Int,
+        imageBytes: ByteArray?,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -57,26 +60,25 @@ class EditEventViewModel(
             try {
                 var finalImageUrl = currentEvent.imageUrl
 
-                // 1. Se o utilizador escolheu uma NOVA imagem, faz upload
                 if (imageBytes != null) {
                     val fileName = "${Clock.System.now().toEpochMilliseconds()}_edit.jpg"
                     val url = repository.uploadEventImage(imageBytes, fileName)
                     if (url != null) finalImageUrl = url
                 }
 
-                // 2. Cria o objeto atualizado
                 val updatedEvent = currentEvent.copy(
                     title = title,
                     description = description,
                     location = location,
                     dateTime = dateTime,
+                    endDateTime = endDateTime, // <--- GRAVA AQUI
                     category = category,
+                    price = price,
+                    maxCapacity = maxCapacity,
                     imageUrl = finalImageUrl
                 )
 
-                // 3. Grava na BD (o addEvent do repo já faz 'set' com merge se tiver ID)
                 repository.addEvent(updatedEvent)
-
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "Error updating event")

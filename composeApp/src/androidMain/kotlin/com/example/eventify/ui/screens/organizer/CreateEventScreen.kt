@@ -123,28 +123,36 @@ fun CreateEventScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        // Conversão segura dos novos campos
-                        val priceValue = price.toDoubleOrNull() ?: 0.0
-                        val capacityValue = capacity.toIntOrNull() ?: 100
+                        val priceVal = price.toDoubleOrNull() ?: 0.0
+                        val capVal = capacity.toIntOrNull() ?: 100
+
+                        // Converter imagem
+                        val imageBytes = if (selectedImageUri != null) {
+                            withContext(Dispatchers.IO) {
+                                uriToByteArray(context, selectedImageUri!!)
+                            }
+                        } else null
 
                         viewModel.createEvent(
                             title = title,
                             description = description,
                             location = location,
                             imageUrl = null,
-                            imageBytes = selectedImageBytes,
-                            dateTime = formatToIso(startCalendar),
+                            imageBytes = imageBytes,
+
+                            // --- DATAS ---
+                            dateTime = formatToIso(startCalendar),   // Início
+                            endDateTime = formatToIso(endCalendar),  // <--- Fim (FALTAVA ISTO!)
+
                             category = selectedCategory.name,
-                            // Passamos os novos valores para o ViewModel
-                            price = priceValue,
-                            maxCapacity = capacityValue,
+                            price = priceVal,
+                            maxCapacity = capVal,
                             onSuccess = { onPublishClick() },
-                            onError = { msg ->
-                                Toast.makeText(context, "Error: $msg", Toast.LENGTH_LONG).show()
-                            }
+                            onError = { msg -> Toast.makeText(context, "Error: $msg", Toast.LENGTH_LONG).show() }
                         )
                     }
                 },
+               
                 enabled = !isLoading && title.isNotBlank() && location.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
