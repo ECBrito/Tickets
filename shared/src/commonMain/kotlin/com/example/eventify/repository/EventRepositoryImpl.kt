@@ -8,6 +8,7 @@ import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
 import com.example.eventify.model.PromoCode
+import com.example.eventify.model.Review
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.storage.Data
 import dev.gitlive.firebase.storage.FirebaseStorage
@@ -344,5 +345,44 @@ class EventRepositoryImpl(
             type = "success"
         )
         usersCollection.document(userId).collection("notifications").add(fakeNotification)
+    }
+
+    // --- REVIEWS ---
+    override fun getReviews(eventId: String): Flow<List<Review>> {
+        return eventsCollection.document(eventId).collection("reviews")
+            .snapshots
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    try { doc.data<Review>().copy(id = doc.id) } catch (e: Exception) { null }
+                }.sortedByDescending { it.timestamp }
+            }
+    }
+
+    override suspend fun addReview(eventId: String, review: Review): Boolean {
+        return try {
+            val eventRef = eventsCollection.document(eventId)
+
+            // 1. Guardar a Review na sub-coleção
+            eventRef.collection("reviews").add(review)
+
+            // 2. Atualizar a média do Evento (Leitura + Escrita)
+            // Nota: Numa app real faríamos isto numa Cloud Function ou Transação para segurança.
+            // Aqui fazemos no cliente para simplicidade do MVP.
+            val eventSnapshot = eventRef.get()
+            val currentRating = try { eventSnapshot.get<Double>("rating") } catch(e:Exception) { 0.0 }
+            val currentCount = try { eventSnapshot.get<Int>("reviewCount") } catch(e:Exception) { 0 }
+
+            val newCount = currentCount + 1
+            val newRating = ((currentRating * currentCount) + review.rating) / newCount
+
+            eventRef.update(
+                "rating" to newRating,
+                "reviewCount" to newCount
+            )
+            true
+        } catch (e: Exception) {
+            println("Erro review: ${e.message}")
+            false
+        }
     }
 }

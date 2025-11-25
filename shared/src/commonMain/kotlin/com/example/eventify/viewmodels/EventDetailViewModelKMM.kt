@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.Review
 import com.example.eventify.repository.EventRepository
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
@@ -37,7 +38,10 @@ class EventDetailViewModelKMM(
     private val _attendees = MutableStateFlow<List<Attendee>>(emptyList())
     @OptIn(InternalSerializationApi::class)
     val attendees: StateFlow<List<Attendee>> = _attendees.asStateFlow()
-
+    @OptIn(InternalSerializationApi::class)
+    private val _reviews = MutableStateFlow<List<Review>>(emptyList())
+    @OptIn(InternalSerializationApi::class)
+    val reviews: StateFlow<List<Review>> = _reviews.asStateFlow()
     // --- NOVO ESTADO: IsFollowing ---
     private val _isFollowingOrganizer = MutableStateFlow(false)
     val isFollowingOrganizer: StateFlow<Boolean> = _isFollowingOrganizer.asStateFlow()
@@ -46,6 +50,7 @@ class EventDetailViewModelKMM(
         observeEvent()
         observeComments()
         loadAttendees()
+        observeReviews()
     }
 
     @OptIn(InternalSerializationApi::class)
@@ -110,4 +115,30 @@ class EventDetailViewModelKMM(
 
     @OptIn(InternalSerializationApi::class)
     val isRegistered: Boolean get() = _event.value?.isRegistered == true
+
+    @OptIn(InternalSerializationApi::class)
+    private fun observeReviews() {
+        viewModelScope.launch {
+            repository.getReviews(eventId).collect { _reviews.value = it }
+        }
+    }
+
+    @OptIn(InternalSerializationApi::class)
+    fun submitReview(rating: Int, comment: String) {
+        if (rating == 0) return
+        viewModelScope.launch {
+            val currentUser = Firebase.auth.currentUser
+            val userName = currentUser?.displayName ?: "User"
+
+            val review = Review(
+                userId = userId,
+                userName = userName,
+                userPhotoUrl = currentUser?.photoURL,
+                rating = rating,
+                comment = comment,
+                timestamp = Clock.System.now().toEpochMilliseconds()
+            )
+            repository.addReview(eventId, review)
+        }
+    }
 }

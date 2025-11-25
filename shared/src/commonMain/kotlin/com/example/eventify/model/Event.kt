@@ -20,5 +20,7 @@ data class Event(
     val price: Double = 0.0,
     val shares: Int = 0, // <--- NOVO
     val maxCapacity: Int = 100, // <--- NOVO CAMPO (Default 100).
-    val organizerId: String = ""
+    val organizerId: String = "",
+    val rating: Double = 0.0, // Média (ex: 4.5)
+    val reviewCount: Int = 0  // Quantas pessoas avaliaram (ex: 12)
 )

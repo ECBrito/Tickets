@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +46,7 @@ import com.example.eventify.di.AppModule
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.Review
 import com.example.eventify.ui.Screen
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -57,6 +60,7 @@ private val TextGray = Color(0xFF9CA3AF)
 private val AccentPurple = Color(0xFFD0BCFF)
 private val AccentPurpleDark = Color(0xFF381E72)
 private val ChipBg = Color(0xFF1E1E2C)
+private val StarYellow = Color(0xFFFFD700)
 
 @OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
@@ -71,7 +75,8 @@ fun EventDetailScreen(
     val event by viewModel.event.collectAsState()
     val comments by viewModel.comments.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
-    val isFollowing by viewModel.isFollowingOrganizer.collectAsState() // <--- ESTADO NOVO
+    val reviews by viewModel.reviews.collectAsState()
+    val isFollowing by viewModel.isFollowingOrganizer.collectAsState() // Estado de Follow
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -112,12 +117,13 @@ fun EventDetailScreen(
                         )
                     }
 
-                    // 2. Info + Quem Vai
+                    // 2. Info + Attendees
                     item {
+                        // Passamos o estado isFollowing e a ação toggleFollow
                         InfoSection(
                             event = event!!,
-                            isFollowing = isFollowing, // <--- PASSA O ESTADO
-                            onFollowClick = { viewModel.toggleFollow() } // <--- PASSA A AÇÃO
+                            isFollowing = isFollowing,
+                            onFollowClick = { viewModel.toggleFollow() }
                         )
                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -169,6 +175,21 @@ fun EventDetailScreen(
                             }
                             item { Spacer(modifier = Modifier.height(40.dp)) }
                         }
+                        3 -> { // Reviews
+                            if (viewModel.isRegistered) {
+                                item {
+                                    ReviewInputSection(onSubmit = { rating, text -> viewModel.submitReview(rating, text) })
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                }
+                            }
+                            item {
+                                RatingSummary(rating = event!!.rating, count = event!!.reviewCount)
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                            if (reviews.isEmpty()) item { Text("No reviews yet.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
+                            else items(reviews) { review -> ReviewItem(review); Spacer(modifier = Modifier.height(16.dp)) }
+                            item { Spacer(modifier = Modifier.height(40.dp)) }
+                        }
                     }
                 }
             }
@@ -176,16 +197,17 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES ATUALIZADOS ---
+// --- COMPONENTES ---
 
 @OptIn(InternalSerializationApi::class)
 @Composable
 fun InfoSection(
     event: Event,
-    isFollowing: Boolean,
-    onFollowClick: () -> Unit
+    isFollowing: Boolean, // <--- Parâmetro Novo
+    onFollowClick: () -> Unit // <--- Parâmetro Novo
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+
         // Data
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
@@ -210,12 +232,14 @@ fun InfoSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) }
+                Box(contentAlignment = Alignment.Center) {
+                    Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark)
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text("Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
 
-            // SEPARADOR E BOTÃO
+            // Separador e Botão Follow
             Spacer(modifier = Modifier.width(12.dp))
             Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape))
             Spacer(modifier = Modifier.width(12.dp))
@@ -231,7 +255,7 @@ fun InfoSection(
     }
 }
 
-// --- RESTANTES COMPONENTES (MANTIDOS IGUAIS) ---
+// --- RESTANTES COMPONENTES (Mantidos iguais para não quebrar) ---
 
 @OptIn(InternalSerializationApi::class)
 @Composable
@@ -261,17 +285,11 @@ fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
 
 @OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
-fun HeaderSection(
-    event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit,
-    animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope
-) {
+fun HeaderSection(event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit, animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope) {
     val context = LocalContext.current
     with(sharedTransitionScope) {
         Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
-            AsyncImage(
-                model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope)
-            )
+            AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope))
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
             Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite) }
@@ -326,10 +344,86 @@ fun CommentItem(comment: Comment) {
 }
 
 @Composable
+fun ReviewInputSection(onSubmit: (Int, String) -> Unit) {
+    var rating by remember { mutableIntStateOf(0) }
+    var text by remember { mutableStateOf("") }
+    Card(colors = CardDefaults.cardColors(containerColor = ChipBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Rate this event", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row { (1..5).forEach { index -> Icon(imageVector = if (index <= rating) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = "$index Stars", tint = StarYellow, modifier = Modifier.size(32.dp).clickable { rating = index }) } }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Write your review...", color = TextGray) }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = TextGray, focusedTextColor = TextWhite, unfocusedTextColor = TextWhite))
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(onClick = { if (rating > 0) { onSubmit(rating, text); text = ""; rating = 0 } }, enabled = rating > 0, modifier = Modifier.align(Alignment.End), colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)) { Text("Post Review") }
+        }
+    }
+}
+
+@Composable
+fun RatingSummary(rating: Double, count: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text(text = "%.1f".format(rating), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Row { repeat(5) { index -> Icon(imageVector = if (index < rating.toInt()) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = null, tint = StarYellow, modifier = Modifier.size(16.dp)) } }
+            Text("$count reviews", color = TextGray, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun ReviewItem(review: Review) {
+    Row(
+        // CORREÇÃO: Usar verticalAlignment em vez de crossAxisAlignment
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.padding(horizontal = 20.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = ChipBg,
+            modifier = Modifier.size(40.dp)
+        ) {
+            if (review.userPhotoUrl != null) {
+                AsyncImage(
+                    model = review.userPhotoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    Icons.Default.Person,
+                    null,
+                    tint = TextGray,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(review.userName, color = TextWhite, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(8.dp))
+                Row {
+                    repeat(review.rating) {
+                        Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(review.comment, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
 fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("Details", "Attendees", "Comments")
+    val tabs = listOf("Details", "Attendees", "Comments", "Reviews")
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+        Row(modifier = Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             tabs.forEachIndexed { index, title ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onTabSelected(index) }) {
                     Text(title, style = MaterialTheme.typography.bodyLarge, color = if (selectedTab == index) TextWhite else TextGray, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal)

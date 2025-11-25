@@ -8,6 +8,7 @@ import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
 import com.example.eventify.model.PromoCode
+import com.example.eventify.model.Review
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.InternalSerializationApi
 
@@ -59,5 +60,8 @@ interface EventRepository {
     fun getUserNotifications(userId: String): Flow<List<NotificationItem>>
     suspend fun markNotificationAsRead(userId: String, notificationId: String)
     suspend fun createTestNotification(userId: String) // Só para testares
+
+    fun getReviews(eventId: String): Flow<List<Review>>
+    suspend fun addReview(eventId: String, review: Review): Boolean
 
 }
