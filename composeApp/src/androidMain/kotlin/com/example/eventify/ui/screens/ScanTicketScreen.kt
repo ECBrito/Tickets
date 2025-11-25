@@ -1,6 +1,12 @@
 package com.example.eventify.ui.screens.organizer
 
 import android.Manifest
+import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.view.ViewGroup
 import androidx.camera.core.CameraSelector
@@ -9,7 +15,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border // <--- FIXED: Required for Modifier.border
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,32 +51,38 @@ import java.util.concurrent.Executors
 fun ScanTicketScreen(
     navController: NavController
 ) {
-    // Permission State
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
     val scope = rememberCoroutineScope()
     val repository = remember { AppModule.eventRepository }
+    val context = LocalContext.current // Necessário para vibrar
 
-    // Validation States
+    // Estados da validação
     var scanResult by remember { mutableStateOf<TicketValidationResult?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
 
-    // Main UI
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
         if (cameraPermissionState.status.isGranted) {
-            // 1. CAMERA PREVIEW
+            // 1. CÂMARA
             CameraPreview(
                 onBarcodeScanned = { barcodeValue ->
                     if (!isProcessing && barcodeValue != null && barcodeValue.isNotEmpty()) {
                         isProcessing = true
 
-                        // Validate via Firebase
                         scope.launch {
                             val result = repository.validateTicket(barcodeValue)
                             scanResult = result
 
-                            // Reset after 3 seconds if invalid, or keep success shown
+                            // --- FEEDBACK FÍSICO (Som + Vibração) ---
+                            if (result == TicketValidationResult.VALID) {
+                                playSuccessFeedback(context)
+                            } else {
+                                playErrorFeedback(context)
+                            }
+                            // ----------------------------------------
+
+                            // Se não for válido, reinicia após 3s. Se for válido, fica no ecrã.
                             if (result != TicketValidationResult.VALID) {
                                 delay(3000)
                                 isProcessing = false
@@ -81,7 +93,7 @@ fun ScanTicketScreen(
                 }
             )
 
-            // 2. TARGET OVERLAY (Box in middle)
+            // 2. MIRA
             Box(
                 modifier = Modifier
                     .size(250.dp)
@@ -90,12 +102,12 @@ fun ScanTicketScreen(
             )
 
         } else {
-            // 3. REQUEST PERMISSION UI
+            // 3. PEDIR PERMISSÃO
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Camera permission needed to scan tickets", color = Color.White)
+                Text("Camera permission needed", color = Color.White)
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { cameraPermissionState.launchPermissionRequest() }) {
                     Text("Grant Permission")
@@ -103,21 +115,18 @@ fun ScanTicketScreen(
             }
         }
 
-        // 4. RESULT OVERLAY
-        // FIXED: Using explicit variables instead of destructuring to prevent ambiguity errors
+        // 4. OVERLAY DE RESULTADO
         if (scanResult != null) {
             val resultColor = when (scanResult) {
-                TicketValidationResult.VALID -> Color(0xFF00E096) // Green
-                TicketValidationResult.ALREADY_USED -> Color(0xFFFFAB00) // Yellow
-                else -> Color(0xFFFF3D71) // Red
+                TicketValidationResult.VALID -> Color(0xFF00E096)
+                TicketValidationResult.ALREADY_USED -> Color(0xFFFFAB00)
+                else -> Color(0xFFFF3D71)
             }
-
             val resultText = when (scanResult) {
                 TicketValidationResult.VALID -> "VALID TICKET"
                 TicketValidationResult.ALREADY_USED -> "ALREADY USED"
                 else -> "INVALID / ERROR"
             }
-
             val resultIcon = when (scanResult) {
                 TicketValidationResult.VALID -> Icons.Default.CheckCircle
                 TicketValidationResult.ALREADY_USED -> Icons.Default.Warning
@@ -158,7 +167,6 @@ fun ScanTicketScreen(
             }
         }
 
-        // Close Button
         IconButton(
             onClick = { navController.popBackStack() },
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
@@ -169,9 +177,7 @@ fun ScanTicketScreen(
 }
 
 @Composable
-fun CameraPreview(
-    onBarcodeScanned: (String?) -> Unit
-) {
+fun CameraPreview(onBarcodeScanned: (String?) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -179,22 +185,14 @@ fun CameraPreview(
         factory = { ctx ->
             val previewView = PreviewView(ctx).apply {
                 this.scaleType = PreviewView.ScaleType.FILL_CENTER
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             }
-
             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
             val executor = ContextCompat.getMainExecutor(ctx)
 
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
-
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
@@ -204,36 +202,55 @@ fun CameraPreview(
                     if (mediaImage != null) {
                         val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
                         val scanner = BarcodeScanning.getClient()
-
                         scanner.process(image)
                             .addOnSuccessListener { barcodes ->
-                                for (barcode in barcodes) {
-                                    barcode.rawValue?.let { value ->
-                                        onBarcodeScanned(value)
-                                    }
-                                }
+                                for (barcode in barcodes) { barcode.rawValue?.let { onBarcodeScanned(it) } }
                             }
                             .addOnCompleteListener { imageProxy.close() }
-                    } else {
-                        imageProxy.close()
-                    }
+                    } else { imageProxy.close() }
                 }
-
                 try {
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        imageAnalysis
-                    )
-                } catch (exc: Exception) {
-                    Log.e("CameraPreview", "Use case binding failed", exc)
-                }
+                    cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
+                } catch (exc: Exception) { Log.e("CameraPreview", "Use case binding failed", exc) }
             }, executor)
-
             previewView
         },
         modifier = Modifier.fillMaxSize()
     )
+}
+
+// --- FUNÇÕES DE FEEDBACK (SOM E VIBRAÇÃO) ---
+
+fun playSuccessFeedback(context: Context) {
+    try {
+        // 1. Vibração Curta e Nítida
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= 26) {
+            vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(150)
+        }
+
+        // 2. Som "Bip" Alto
+        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+    } catch (e: Exception) { e.printStackTrace() }
+}
+
+fun playErrorFeedback(context: Context) {
+    try {
+        // 1. Vibração Longa e Dupla
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= 26) {
+            val waveform = longArrayOf(0, 200, 100, 200) // Espera 0, Vibra 200, Para 100, Vibra 200
+            vibrator.vibrate(VibrationEffect.createWaveform(waveform, -1))
+        } else {
+            vibrator.vibrate(500)
+        }
+
+        // 2. Som Grave ou Longo
+        val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+        toneGen.startTone(ToneGenerator.TONE_CDMA_SOFT_ERROR_LITE, 500)
+    } catch (e: Exception) { e.printStackTrace() }
 }
