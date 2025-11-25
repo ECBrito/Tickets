@@ -282,4 +282,32 @@ class EventRepositoryImpl(
             if (snapshot.exists) favDoc.delete() else favDoc.set(mapOf("savedAt" to Clock.System.now().toEpochMilliseconds()))
         } catch (e: Exception) { }
     }
+
+    override fun isFollowing(userId: String, organizerId: String): Flow<Boolean> {
+        if (userId.isBlank() || organizerId.isBlank()) return flowOf(false)
+
+        // Ouve o documento específico: users/{eu}/following/{organizerId}
+        return usersCollection.document(userId).collection("following").document(organizerId)
+            .snapshots
+            .map { it.exists } // Se o documento existe, é porque sigo
+            .catch { emit(false) }
+    }
+
+    override suspend fun toggleFollow(userId: String, organizerId: String) {
+        if (userId.isBlank() || organizerId.isBlank()) return
+
+        try {
+            val followDoc = usersCollection.document(userId).collection("following").document(organizerId)
+            val snapshot = followDoc.get()
+
+            if (snapshot.exists) {
+                followDoc.delete() // Deixar de seguir
+            } else {
+                // Seguir (Guardamos a data)
+                followDoc.set(mapOf("followedAt" to Clock.System.now().toEpochMilliseconds()))
+            }
+        } catch (e: Exception) {
+            println("Erro no follow: ${e.message}")
+        }
+    }
 }

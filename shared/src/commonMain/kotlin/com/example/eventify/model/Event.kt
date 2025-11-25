@@ -19,6 +19,6 @@ data class Event(
     val registeredUserIds: List<String> = emptyList(),
     val price: Double = 0.0,
     val shares: Int = 0, // <--- NOVO
-    val maxCapacity: Int = 100 // <--- NOVO CAMPO (Default 100).
-
+    val maxCapacity: Int = 100, // <--- NOVO CAMPO (Default 100).
+    val organizerId: String = ""
 )

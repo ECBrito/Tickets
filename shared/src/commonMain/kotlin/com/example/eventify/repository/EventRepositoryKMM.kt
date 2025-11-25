@@ -51,4 +51,8 @@ interface EventRepository {
     // --- FAVORITOS ---
     fun getFavoriteEventIds(userId: String): Flow<List<String>>
     suspend fun toggleFavorite(userId: String, eventId: String)
+
+    fun isFollowing(userId: String, organizerId: String): Flow<Boolean>
+    suspend fun toggleFollow(userId: String, organizerId: String)
+
 }

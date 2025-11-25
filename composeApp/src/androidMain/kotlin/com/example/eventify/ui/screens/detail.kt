@@ -37,7 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex // <--- IMPORT CRÍTICO PARA AS BOLINHAS
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
@@ -70,7 +70,8 @@ fun EventDetailScreen(
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
     val event by viewModel.event.collectAsState()
     val comments by viewModel.comments.collectAsState()
-    val attendees by viewModel.attendees.collectAsState() // <--- ESTADO NOVO
+    val attendees by viewModel.attendees.collectAsState()
+    val isFollowing by viewModel.isFollowingOrganizer.collectAsState() // <--- ESTADO NOVO
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -111,12 +112,15 @@ fun EventDetailScreen(
                         )
                     }
 
-                    // 2. Info + Attendees (Prova Social)
+                    // 2. Info + Quem Vai
                     item {
-                        InfoSection(event = event!!)
+                        InfoSection(
+                            event = event!!,
+                            isFollowing = isFollowing, // <--- PASSA O ESTADO
+                            onFollowClick = { viewModel.toggleFollow() } // <--- PASSA A AÇÃO
+                        )
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // --- AQUI ESTÁ A CHAMADA NOVA ---
                         AttendeesPreviewSection(allAttendees = attendees)
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -128,7 +132,7 @@ fun EventDetailScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 4. Conteúdo da Tab
+                    // 4. Conteúdo
                     when (selectedTab) {
                         0 -> { // Details
                             item {
@@ -142,8 +146,7 @@ fun EventDetailScreen(
                                 }
                             }
                         }
-                        1 -> { // Attendees (Lista completa, opcional)
-                            // Podes reutilizar a AttendeesPreviewSection aqui ou fazer uma lista vertical
+                        1 -> { // Attendees
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                                     if (attendees.isEmpty()) Text("No one yet.", color = TextGray)
@@ -173,64 +176,88 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES (INCLUINDO O NOVO ATTENDEES) ---
+// --- COMPONENTES ATUALIZADOS ---
 
 @OptIn(InternalSerializationApi::class)
 @Composable
-fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
-    if (allAttendees.isEmpty()) return
-
-    // Filtra apenas os que têm perfil público e foto
-    val visibleAttendees = allAttendees.filter { it.isPublic && it.photoUrl.isNotBlank() }.take(5)
-    val totalCount = allAttendees.size
-
+fun InfoSection(
+    event: Event,
+    isFollowing: Boolean,
+    onFollowClick: () -> Unit
+) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text(
-            text = "Who's Going",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = TextWhite
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
+        // Data
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Face Pile (Sobreposição)
-            if (visibleAttendees.isNotEmpty()) {
-                Box(modifier = Modifier.width((30 * visibleAttendees.size).dp + 40.dp)) {
-                    visibleAttendees.forEachIndexed { index, attendee ->
-                        AsyncImage(
-                            model = attendee.photoUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .padding(start = (28 * index).dp) // Deslocamento
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, BgDark, CircleShape)
-                                .zIndex(5f - index) // Ordem de empilhamento
-                        )
-                    }
-                }
-            } else {
-                // Ícone genérico se ninguém tiver foto
-                Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.size(32.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
+            Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // Texto de contagem
-            val remainingText = if (totalCount > 1) "+ $totalCount others going" else "is going"
+        // Local
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Organizador + Follow
+        Row(
+            modifier = Modifier
+                .border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
+
+            // SEPARADOR E BOTÃO
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = remainingText,
+                text = if (isFollowing) "Following" else "Follow",
+                color = if (isFollowing) TextGray else AccentPurple,
+                fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.bodyMedium,
-                color = AccentPurple,
-                fontWeight = FontWeight.SemiBold
+                modifier = Modifier.clickable { onFollowClick() }
             )
         }
     }
 }
 
-// --- RESTANTES COMPONENTES (MANTIDOS) ---
+// --- RESTANTES COMPONENTES (MANTIDOS IGUAIS) ---
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
+    if (allAttendees.isEmpty()) return
+    val visibleAttendees = allAttendees.filter { it.isPublic && it.photoUrl.isNotBlank() }.take(5)
+    val totalCount = allAttendees.size
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Who's Going", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (visibleAttendees.isNotEmpty()) {
+                Box(modifier = Modifier.width((30 * visibleAttendees.size).dp + 40.dp)) {
+                    visibleAttendees.forEachIndexed { index, attendee ->
+                        AsyncImage(model = attendee.photoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.padding(start = (28 * index).dp).size(40.dp).clip(CircleShape).border(2.dp, BgDark, CircleShape).zIndex(5f - index))
+                    }
+                }
+            } else {
+                Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            val remainingText = if (totalCount > 1) "+ $totalCount others going" else "is going"
+            Text(remainingText, style = MaterialTheme.typography.bodyMedium, color = AccentPurple, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
 
 @OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
@@ -247,60 +274,10 @@ fun HeaderSection(
             )
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
             Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite)
-                }
-                IconButton(
-                    onClick = {
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this event: ${event.title}"); type = "text/plain" }
-                        context.startActivity(Intent.createChooser(sendIntent, "Share"))
-                        onShareClick()
-                    },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
-                ) {
-                    Icon(Icons.Default.Share, "Share", tint = TextWhite)
-                }
+                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite) }
+                IconButton(onClick = { val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this: ${event.title}"); type = "text/plain" }; context.startActivity(Intent.createChooser(sendIntent, "Share")); onShareClick() }, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.Default.Share, "Share", tint = TextWhite) }
             }
             Text(event.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = TextWhite, modifier = Modifier.align(Alignment.BottomStart).padding(20.dp))
-        }
-    }
-}
-
-@OptIn(InternalSerializationApi::class)
-@Composable
-fun InfoSection(event: Event) {
-    val context = LocalContext.current
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
-            try {
-                val startMillis = LocalDateTime.parse(event.dateTime).toInstant(TimeZone.currentSystemDefault()).toEpochMilliseconds()
-                val intent = Intent(Intent.ACTION_INSERT).apply {
-                    data = CalendarContract.Events.CONTENT_URI
-                    putExtra(CalendarContract.Events.TITLE, event.title)
-                    putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
-                    putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
-                }
-                context.startActivity(intent)
-            } catch (e: Exception) {}
-        }.padding(vertical = 8.dp)) {
-            Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
-                Text("Add to Calendar", style = MaterialTheme.typography.labelSmall, color = AccentPurple)
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp)) {
-            Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Organized by Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -405,3 +382,5 @@ private fun formatDateTime(dateTime: String): String {
         "$dayOfWeek, $month ${parsed.dayOfMonth} • $hour:$minute"
     } catch (e: Exception) { dateTime }
 }
+
+fun Modifier.alpha(alpha: Float) = this

@@ -24,10 +24,14 @@ class CreateEventViewModel(
         title: String,
         description: String,
         location: String,
-        imageUrl: String?, // URL local (apenas para compatibilidade, será ignorado se houver bytes)
-        imageBytes: ByteArray?, // <--- A IMAGEM REAL (BYTES)
+        imageUrl: String?,
+        imageBytes: ByteArray?, // Imagem Real
         dateTime: String,
         category: String,
+        // --- NOVOS CAMPOS PARA O DASHBOARD ---
+        price: Double = 0.0,     // Preço do bilhete (padrão 0 se não for passado)
+        maxCapacity: Int = 100,  // Lotação máxima (padrão 100)
+        // -------------------------------------
         onSuccess: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
@@ -42,35 +46,37 @@ class CreateEventViewModel(
             try {
                 var finalImageUrl = ""
 
-                // --- PASSO 1: UPLOAD DA IMAGEM (Se existir) ---
+                // --- PASSO 1: UPLOAD DA IMAGEM ---
                 if (imageBytes != null) {
-                    // Gera um nome único baseado no tempo atual
                     val fileName = "${Clock.System.now().toEpochMilliseconds()}.jpg"
-
-                    // Faz o upload e recebe o link público (https://...)
                     val uploadedUrl = repository.uploadEventImage(imageBytes, fileName)
 
                     if (uploadedUrl != null) {
                         finalImageUrl = uploadedUrl
                     } else {
-                        println("Aviso: Upload da imagem falhou, criando evento sem imagem.")
+                        println("Aviso: Upload da imagem falhou.")
                     }
                 }
 
                 // --- PASSO 2: CRIAR O OBJETO EVENTO ---
                 val event = Event(
-                    id = "", // O Firebase gera o ID
+                    id = "", // Gerado pelo Firestore
                     title = title,
                     description = description,
                     location = location,
-                    imageUrl = finalImageUrl, // Usa o link da nuvem
+                    imageUrl = finalImageUrl,
                     dateTime = dateTime,
                     category = category,
-                    registeredUserIds = listOf(organizerId), // O criador vai automaticamente
-                    isRegistered = true
+                    organizerId = organizerId,
+                    registeredUserIds = listOf(organizerId),
+                    isRegistered = true,
+                    // --- DADOS FINANCEIROS E ESTATÍSTICOS ---
+                    price = price,
+                    maxCapacity = maxCapacity,
+                    shares = 0 // Inicia com 0 partilhas
                 )
 
-                // --- PASSO 3: GRAVAR NA BASE DE DADOS ---
+                // --- PASSO 3: GRAVAR ---
                 val success = repository.addEvent(event)
 
                 if (success) {

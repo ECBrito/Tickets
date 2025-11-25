@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions // <--- Import Novo
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType // <--- Import Novo
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
@@ -50,9 +52,13 @@ fun CreateEventScreen(
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
 
-    // IMAGEM: Guardamos o URI para mostrar no ecrã, e os BYTES para enviar
+    // NOVOS CAMPOS (Strings para facilitar input, convertemos ao enviar)
+    var price by remember { mutableStateOf("") }
+    var capacity by remember { mutableStateOf("") }
+
+    // IMAGEM
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) } // <--- NOVO ESTADO
+    var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf(EventCategory.OTHER) }
@@ -65,14 +71,11 @@ fun CreateEventScreen(
 
     val isLoading by viewModel.loading.collectAsState()
 
-    // Launcher da Galeria
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             selectedImageUri = uri
-
-            // CORREÇÃO CRÍTICA: Ler os bytes IMEDIATAMENTE enquanto temos permissão
             scope.launch(Dispatchers.IO) {
                 val bytes = uriToByteArray(context, uri)
                 withContext(Dispatchers.Main) {
@@ -82,7 +85,6 @@ fun CreateEventScreen(
         }
     }
 
-    // Formatação de datas
     fun formatToIso(calendar: Calendar): String {
         val year = calendar.get(Calendar.YEAR)
         val month = (calendar.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
@@ -121,15 +123,21 @@ fun CreateEventScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        // Agora usamos os bytes que já lemos antes
+                        // Conversão segura dos novos campos
+                        val priceValue = price.toDoubleOrNull() ?: 0.0
+                        val capacityValue = capacity.toIntOrNull() ?: 100
+
                         viewModel.createEvent(
                             title = title,
                             description = description,
                             location = location,
                             imageUrl = null,
-                            imageBytes = selectedImageBytes, // <--- USA A VARIÁVEL GUARDADA
+                            imageBytes = selectedImageBytes,
                             dateTime = formatToIso(startCalendar),
                             category = selectedCategory.name,
+                            // Passamos os novos valores para o ViewModel
+                            price = priceValue,
+                            maxCapacity = capacityValue,
                             onSuccess = { onPublishClick() },
                             onError = { msg ->
                                 Toast.makeText(context, "Error: $msg", Toast.LENGTH_LONG).show()
@@ -191,7 +199,7 @@ fun CreateEventScreen(
                 }
             }
 
-            // 2. Campos de Texto
+            // 2. Campos de Texto Básicos
             item {
                 OutlinedTextField(
                     value = title,
@@ -274,6 +282,29 @@ fun CreateEventScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+            }
+
+            // 6. Preço e Lotação (NOVOS CAMPOS)
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = price,
+                        onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) price = it },
+                        label = { Text("Price ($)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+
+                    OutlinedTextField(
+                        value = capacity,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) capacity = it },
+                        label = { Text("Max Capacity") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
             }
         }
     }
