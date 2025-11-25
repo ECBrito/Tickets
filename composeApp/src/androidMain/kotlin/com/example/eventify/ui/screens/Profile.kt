@@ -32,9 +32,9 @@ import kotlinx.serialization.InternalSerializationApi
 fun ProfileScreen(
     onLogoutClick: () -> Unit,
     onOrganizerClick: () -> Unit,
-    onEditProfileClick: () -> Unit // <--- NOVO PARÂMETRO
+    onEditProfileClick: () -> Unit,
+    onInterestsClick: () -> Unit // <--- NOVO PARÂMETRO
 ) {
-    // 1. Ler os dados do utilizador para mostrar no Header
     val viewModel = remember { AppModule.provideEditProfileViewModel() }
     val profile by viewModel.profile.collectAsState()
 
@@ -44,7 +44,6 @@ fun ProfileScreen(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
-        // Passamos o profile para o Header
         ProfileHeader(profile)
 
         // --- Botão para mudar para Organizador ---
@@ -71,11 +70,10 @@ fun ProfileScreen(
 
         // Definições da Conta
         SettingsSection(title = "Account") {
-            // 2. LIGAR O CLIQUE AQUI
             SettingsItem(
                 icon = Icons.Default.Person,
                 title = "Personal Information",
-                onClick = onEditProfileClick // <--- Navega para editar
+                onClick = onEditProfileClick
             )
             SettingsItem(icon = Icons.Default.Payment, title = "Payment Methods", onClick = {})
             SettingsItem(icon = Icons.Default.Security, title = "Security", onClick = {})
@@ -83,6 +81,13 @@ fun ProfileScreen(
 
         // Preferências
         SettingsSection(title = "Preferences") {
+            // --- BOTÃO DE INTERESSES ---
+            SettingsItem(
+                icon = Icons.Default.Favorite,
+                title = "My Interests",
+                onClick = onInterestsClick // <--- LIGAÇÃO
+            )
+
             SettingsItem(icon = Icons.Default.Notifications, title = "Notifications", onClick = {})
             SettingsItem(icon = Icons.Default.Language, title = "Language", value = "English (US)", onClick = {})
 
@@ -111,93 +116,41 @@ fun ProfileScreen(
             }
         }
 
-        // Espaço extra para scroll e BottomNav
         Spacer(modifier = Modifier.height(120.dp))
     }
 }
 
+// ... (Os restantes componentes auxiliares: ProfileHeader, SettingsSection, etc. mantêm-se iguais)
 @OptIn(InternalSerializationApi::class)
 @Composable
 fun ProfileHeader(profile: UserProfile) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 40.dp, bottom = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Lógica para mostrar foto do Firebase ou placeholder
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 40.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (profile.photoUrl.isNotBlank()) {
-            AsyncImage(
-                model = profile.photoUrl,
-                contentDescription = "Profile Picture",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
+            AsyncImage(model = profile.photoUrl, contentDescription = "Profile Picture", contentScale = ContentScale.Crop, modifier = Modifier.size(100.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
         } else {
-            // Placeholder se não houver foto
-            Surface(
-                modifier = Modifier.size(100.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.padding(20.dp),
-                    tint = Color.Gray
-                )
-            }
+            Surface(modifier = Modifier.size(100.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) { Icon(Icons.Default.Person, null, modifier = Modifier.padding(20.dp), tint = Color.Gray) }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Nome Real
-        Text(
-            text = if (profile.name.isNotBlank()) profile.name else "User",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        // Email Real (ou Bio se preferires)
-        Text(
-            text = if (profile.email.isNotBlank()) profile.email else profile.bio.ifBlank { "No bio yet" },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(text = if (profile.name.isNotBlank()) profile.name else "User", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text(text = if (profile.email.isNotBlank()) profile.email else profile.bio.ifBlank { "No bio yet" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-        )
+        Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         content()
     }
 }
 
 @Composable
 fun SettingsItem(icon: ImageVector, title: String, value: String? = null, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.width(16.dp))
         Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
-        if (value != null) {
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+        if (value != null) { Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(modifier = Modifier.width(8.dp)) }
         Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
     HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -205,24 +158,11 @@ fun SettingsItem(icon: ImageVector, title: String, value: String? = null, onClic
 
 @Composable
 fun SettingsSwitchItem(icon: ImageVector, title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.width(16.dp))
         Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
     HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ProfileScreenPreview() {
-    EventifyTheme(darkTheme = true) {
-        ProfileScreen(onLogoutClick = {}, onOrganizerClick = {}, onEditProfileClick = {})
-    }
 }

@@ -71,7 +71,7 @@ fun HomeScreenContent(
         ) {
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // --- 1. Featured ---
+            // --- 1. Featured (Destaques) ---
             item {
                 SectionHeader("Featured This Week")
                 Spacer(modifier = Modifier.height(16.dp))
@@ -142,7 +142,12 @@ fun FeaturedEventsCarousel(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(end = 16.dp)) {
         items(events) { event ->
-            FeatureCard(event, onClick = { onEventClick(event.id) })
+            FeatureCard(
+                event = event,
+                onClick = { onEventClick(event.id) },
+                animatedVisibilityScope = animatedVisibilityScope,
+                sharedTransitionScope = sharedTransitionScope
+            )
         }
     }
 }
@@ -157,7 +162,7 @@ fun EventCard(
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
-    with(sharedTransitionScope) { // Entra no scope para usar Modifier.sharedElement
+    with(sharedTransitionScope) {
         Card(
             onClick = { onClick(event.id) },
             modifier = Modifier.fillMaxWidth(),
@@ -165,7 +170,6 @@ fun EventCard(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
         ) {
             Column {
-                // A IMAGEM QUE VAI CRESCER
                 AsyncImage(
                     model = event.imageUrl,
                     contentDescription = null,
@@ -173,7 +177,7 @@ fun EventCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(160.dp)
-                        // CORREÇÃO AQUI: Mudei 'state' para 'sharedContentState'
+                        // ANIMAÇÃO
                         .sharedElement(
                             sharedContentState = rememberSharedContentState(key = "image-${event.id}"),
                             animatedVisibilityScope = animatedVisibilityScope
@@ -181,6 +185,41 @@ fun EventCard(
                         .clip(MaterialTheme.shapes.medium)
                 )
 
+                Column(Modifier.padding(16.dp)) {
+                    Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                    Spacer(Modifier.height(4.dp))
+                    Text(event.dateTime.take(10), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
+@Composable
+fun FeatureCard(
+    event: Event,
+    onClick: () -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
+) {
+    with(sharedTransitionScope) {
+        Card(onClick = onClick, modifier = Modifier.width(280.dp), shape = MaterialTheme.shapes.medium, colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
+            Column {
+                AsyncImage(
+                    model = event.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        // ANIMAÇÃO TAMBÉM AQUI
+                        .sharedElement(
+                            sharedContentState = rememberSharedContentState(key = "image-${event.id}"),
+                            animatedVisibilityScope = animatedVisibilityScope
+                        )
+                        .clip(MaterialTheme.shapes.medium)
+                )
                 Column(Modifier.padding(16.dp)) {
                     Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                     Spacer(Modifier.height(4.dp))
@@ -231,21 +270,6 @@ fun HomeTopBar(onSearchClick: () -> Unit, onNotificationsClick: () -> Unit, onPr
 @Composable
 fun SectionHeader(title: String) {
     Text(text = title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
-}
-
-@OptIn(InternalSerializationApi::class)
-@Composable
-fun FeatureCard(event: Event, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.width(280.dp), shape = MaterialTheme.shapes.medium, colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))) {
-        Column {
-            AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(160.dp).clip(MaterialTheme.shapes.medium))
-            Column(Modifier.padding(16.dp)) {
-                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                Spacer(Modifier.height(4.dp))
-                Text(event.dateTime.take(10), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-            }
-        }
-    }
 }
 
 @Composable

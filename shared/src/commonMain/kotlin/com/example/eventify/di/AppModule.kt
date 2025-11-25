@@ -79,4 +79,8 @@ object AppModule {
     fun provideNotificationsViewModel(): NotificationsViewModel {
         return NotificationsViewModel(eventRepository, currentUserId)
     }
+
+    fun provideInterestsViewModel(): InterestsViewModel {
+        return InterestsViewModel(eventRepository, currentUserId)
+    }
 }

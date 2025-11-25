@@ -11,25 +11,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.eventify.di.AppModule
-// Imports dos Ecrãs Principais
 import com.example.eventify.ui.screens.*
-// Imports de Autenticação
 import com.example.eventify.ui.screens.auth.ForgotPasswordScreen
 import com.example.eventify.ui.screens.auth.SignInScreen
 import com.example.eventify.ui.screens.auth.SignUpScreen
-// Imports de Organizador
+import com.example.eventify.ui.screens.organizer.AttendeesListScreen
 import com.example.eventify.ui.screens.organizer.CreateEventScreen
 import com.example.eventify.ui.screens.organizer.EditEventScreen
 import com.example.eventify.ui.screens.organizer.OrganizerDashboardScreen
 import com.example.eventify.ui.screens.organizer.OrganizerEventDashboard
 import com.example.eventify.ui.screens.organizer.ScanTicketScreen
-import com.example.eventify.ui.screens.organizer.AttendeesListScreen // <--- IMPORT NOVO
-// Imports de Compra e Bilhetes
 import com.example.eventify.ui.screens.PurchaseScreen
 import com.example.eventify.ui.screens.TicketDetailScreen
-// Import do Perfil
 import com.example.eventify.ui.screens.EditProfileScreen
-
 import com.google.firebase.auth.FirebaseAuth
 
 object Screen {
@@ -45,6 +39,7 @@ object Screen {
     const val EXPLORE_MAP = "explore_map"
     const val NOTIFICATIONS = "notifications"
     const val EDIT_PROFILE = "edit_profile"
+    const val INTERESTS = "interests"
 
     // --- EVENTOS & TICKETS ---
     const val EVENT_DETAIL = "event/{eventId}"
@@ -56,8 +51,8 @@ object Screen {
     const val CREATE_EVENT = "create_event"
     const val EDIT_EVENT = "edit_event/{eventId}"
     const val ORGANIZER_EVENT_STATS = "organizer_event_stats/{eventId}"
+    const val ATTENDEES_LIST = "attendees_list/{eventId}" // <--- FALTAVA ESTA
     const val SCANNER = "scanner"
-    const val ATTENDEES_LIST = "attendees_list/{eventId}" // <--- NOVA ROTA
 
     // --- HELPER FUNCTIONS ---
     fun eventDetail(eventId: String) = "event/$eventId"
@@ -65,7 +60,7 @@ object Screen {
     fun ticketDetail(ticketId: String, eventTitle: String) = "ticket/$ticketId/$eventTitle"
     fun organizerEventStats(eventId: String) = "organizer_event_stats/$eventId"
     fun editEvent(eventId: String) = "edit_event/$eventId"
-    fun attendeesList(eventId: String) = "attendees_list/$eventId" // <--- HELPER NOVO
+    fun attendeesList(eventId: String) = "attendees_list/$eventId" // <--- FALTAVA ESTA
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -82,9 +77,7 @@ fun EventifyNavHost(
     SharedTransitionLayout {
         NavHost(navController = navController, startDestination = startDestination) {
 
-            // =====================================================================
-            // ONBOARDING & AUTH
-            // =====================================================================
+            // --- ONBOARDING & AUTH ---
             composable(Screen.ONBOARDING) {
                 OnboardingScreen(onFinish = {
                     sharedPref.edit().putBoolean("seenOnboarding", true).apply()
@@ -105,15 +98,10 @@ fun EventifyNavHost(
                 )
             }
             composable(Screen.FORGOT_PASSWORD) {
-                ForgotPasswordScreen(
-                    onBackClick = { navController.popBackStack() },
-                    onSendLinkClick = { navController.popBackStack() }
-                )
+                ForgotPasswordScreen(onBackClick = { navController.popBackStack() }, onSendLinkClick = { navController.popBackStack() })
             }
 
-            // =====================================================================
-            // MAIN FLOW (USER)
-            // =====================================================================
+            // --- MAIN FLOW (USER) ---
             composable(Screen.HOME_ROOT) {
                 MainScreen(
                     navController = navController,
@@ -141,11 +129,12 @@ fun EventifyNavHost(
             }
 
             composable(Screen.NOTIFICATIONS) { NotificationsScreen(onBackClick = { navController.popBackStack() }) }
+
             composable(Screen.EDIT_PROFILE) { EditProfileScreen(navController = navController) }
 
-            // =====================================================================
-            // DETALHES E COMPRA DE BILHETES
-            // =====================================================================
+            composable(Screen.INTERESTS) { InterestsScreen(navController = navController) }
+
+            // --- DETAILS & TICKETS ---
             composable(
                 route = Screen.EVENT_DETAIL,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -161,10 +150,7 @@ fun EventifyNavHost(
                 )
             }
 
-            composable(
-                route = Screen.PURCHASE,
-                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
-            ) { backStackEntry ->
+            composable(Screen.PURCHASE, arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 PurchaseScreen(eventId = eventId, navController = navController)
             }
@@ -178,24 +164,19 @@ fun EventifyNavHost(
                 TicketDetailScreen(ticketId = ticketId, eventTitle = eventTitle, navController = navController)
             }
 
-            // =====================================================================
-            // ORGANIZER FLOW
-            // =====================================================================
+            // --- ORGANIZER FLOW ---
             composable(Screen.ORGANIZER_DASHBOARD) {
                 OrganizerDashboardScreen(
                     onCreateEventClick = { navController.navigate(Screen.CREATE_EVENT) },
                     onEventClick = { eventId -> navController.navigate(Screen.organizerEventStats(eventId)) },
                     onScanClick = { navController.navigate(Screen.SCANNER) },
                     onEditEventClick = { eventId -> navController.navigate(Screen.editEvent(eventId)) },
-                    // Callback para ver a lista de participantes
                     onViewAttendeesClick = { eventId -> navController.navigate(Screen.attendeesList(eventId)) }
                 )
             }
-
             composable(Screen.CREATE_EVENT) {
                 CreateEventScreen(onBackClick = { navController.popBackStack() }, onPublishClick = { navController.popBackStack() })
             }
-
             composable(
                 route = Screen.EDIT_EVENT,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -203,7 +184,6 @@ fun EventifyNavHost(
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 EditEventScreen(eventId = eventId, onBackClick = { navController.popBackStack() }, onSaveClick = { navController.popBackStack() })
             }
-
             composable(
                 route = Screen.ORGANIZER_EVENT_STATS,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -211,10 +191,8 @@ fun EventifyNavHost(
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 OrganizerEventDashboard(eventId = eventId, navController = navController)
             }
-
             composable(Screen.SCANNER) { ScanTicketScreen(navController = navController) }
 
-            // --- NOVA ROTA: LISTA DE PARTICIPANTES ---
             composable(
                 route = Screen.ATTENDEES_LIST,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })

@@ -3,7 +3,7 @@ package com.example.eventify.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.eventify.model.Event
-import com.example.eventify.model.EventCategory // <--- Importar o Enum
+import com.example.eventify.model.EventCategory
 import com.example.eventify.repository.EventRepository
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.InternalSerializationApi
 
-@OptIn(InternalSerializationApi::class)
+@OptIn(InternalSerializationApi::class) // Aplica a toda a classe para limpar o código
 class HomeViewModelKMM(
     private val repository: EventRepository
 ) : ViewModel() {
@@ -24,66 +24,97 @@ class HomeViewModelKMM(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // Categoria Selecionada (null = "All")
+    // Categoria Selecionada na Home (null = "All")
     private val _selectedCategory = MutableStateFlow<EventCategory?>(null)
     val selectedCategory: StateFlow<EventCategory?> = _selectedCategory
 
+    // Interesses do utilizador (carregados do Perfil)
+    private val _userInterests = MutableStateFlow<List<String>>(emptyList())
+
     private val currentUserId = Firebase.auth.currentUser?.uid ?: ""
 
-    @OptIn(InternalSerializationApi::class)
+    // --- FLOWS ---
+
+    // 1. Eventos Crus da BD
     private val allEventsFlow = repository.events
 
+    // 2. Favoritos do User
     private val favoritesFlow = if (currentUserId.isNotEmpty()) {
         repository.getFavoriteEventIds(currentUserId)
     } else {
         flowOf(emptyList())
     }
 
-    // Base: Eventos + Info se é favorito
-    @OptIn(InternalSerializationApi::class)
+    // 3. Base Combinada: Eventos + Estado isSaved
     private val eventsWithFavs = combine(allEventsFlow, favoritesFlow) { events, favIds ->
         events.map { event ->
             event.copy(isSaved = favIds.contains(event.id))
         }
     }
 
-    // 1. Featured: Sempre os primeiros 3, independentemente do filtro
-    @OptIn(InternalSerializationApi::class)
+    // --- LISTAS FINAIS PARA A UI ---
+
+    // A. Featured: Os primeiros 3 eventos (sempre visíveis)
     val featuredEvents: StateFlow<List<Event>> = eventsWithFavs
         .combine(favoritesFlow) { events, _ ->
             events.take(3)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 2. Upcoming: O resto da lista, FILTRADO pela categoria
-    @OptIn(InternalSerializationApi::class)
+    // B. Upcoming: O resto dos eventos, FILTRADO pela categoria selecionada (Chips)
     val upcomingEvents: StateFlow<List<Event>> = combine(
         eventsWithFavs,
         _selectedCategory
     ) { events, category ->
-        // Primeiro ignoramos os 3 destaques
+        // Ignora os 3 primeiros que já estão no Featured
         val remaining = events.drop(3)
 
-        // Depois aplicamos o filtro (se houver categoria selecionada)
         if (category == null) {
             remaining
         } else {
             remaining.filter { event ->
-                // Compara ignorando maiúsculas/minúsculas
                 event.category.equals(category.name, ignoreCase = true)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // C. For You: Eventos recomendados baseados nos interesses do perfil
+    val forYouEvents: StateFlow<List<Event>> = combine(
+        eventsWithFavs,
+        _userInterests
+    ) { events, interests ->
+        if (interests.isEmpty()) {
+            emptyList() // Se não escolheu interesses, não mostra a secção
+        } else {
+            events.filter { event ->
+                // Verifica se a categoria do evento está na lista de interesses do user
+                interests.any { userInterest ->
+                    userInterest.equals(event.category, ignoreCase = true)
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
+        // 1. Carregar Perfil para obter interesses
+        viewModelScope.launch {
+            if (currentUserId.isNotBlank()) {
+                val profile = repository.getUserProfile(currentUserId)
+                if (profile != null) {
+                    _userInterests.value = profile.interests
+                }
+            }
+        }
+
+        // 2. Gerir Loading
         viewModelScope.launch {
             eventsWithFavs.collect { _isLoading.value = false }
         }
     }
 
-    // Ações
+    // --- AÇÕES ---
+
     fun selectCategory(category: EventCategory?) {
-        // Se clicar na mesma categoria, desmarca (volta a All). Senão, seleciona a nova.
         if (_selectedCategory.value == category) {
             _selectedCategory.value = null
         } else {

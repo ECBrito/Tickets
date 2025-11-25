@@ -116,15 +116,21 @@ fun MainScreen(
                     )
                 }
 
+
                 // 4. PROFILE
                 BottomNavItem.Profile.route -> {
                     ProfileScreen(
                         onLogoutClick = {
                             try { FirebaseAuth.getInstance().signOut() } catch (e: Exception) { }
-                            navController.navigate(Screen.AUTH_ROOT) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
+                            navController.navigate(Screen.AUTH_ROOT) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         },
                         onOrganizerClick = { navController.navigate(Screen.ORGANIZER_DASHBOARD) },
-                        onEditProfileClick = { navController.navigate(Screen.EDIT_PROFILE) }
+                        onEditProfileClick = { navController.navigate(Screen.EDIT_PROFILE) },
+                        // LIGAÇÃO NOVA:
+                        onInterestsClick = { navController.navigate(Screen.INTERESTS) }
                     )
                 }
                 else -> Box(Modifier.fillMaxSize())

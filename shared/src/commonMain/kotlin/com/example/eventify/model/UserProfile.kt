@@ -12,5 +12,6 @@ data class UserProfile(
     val photoUrl: String = "",
     val socialLink: String = "",
     val role: String = "user", // user ou organizer
-    val isPublic: Boolean = true
+    val isPublic: Boolean = true,
+    val interests: List<String> = emptyList()
 )
