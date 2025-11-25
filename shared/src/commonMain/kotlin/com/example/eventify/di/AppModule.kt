@@ -75,4 +75,8 @@ object AppModule {
     fun provideAttendeesViewModel(eventId: String): AttendeesViewModel {
         return AttendeesViewModel(eventRepository, eventId)
     }
+
+    fun provideNotificationsViewModel(): NotificationsViewModel {
+        return NotificationsViewModel(eventRepository, currentUserId)
+    }
 }

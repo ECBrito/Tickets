@@ -3,6 +3,7 @@ package com.example.eventify.repository
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.NotificationItem
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
@@ -54,5 +55,9 @@ interface EventRepository {
 
     fun isFollowing(userId: String, organizerId: String): Flow<Boolean>
     suspend fun toggleFollow(userId: String, organizerId: String)
+
+    fun getUserNotifications(userId: String): Flow<List<NotificationItem>>
+    suspend fun markNotificationAsRead(userId: String, notificationId: String)
+    suspend fun createTestNotification(userId: String) // Só para testares
 
 }

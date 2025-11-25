@@ -78,6 +78,8 @@ kotlin {
 
             // --- FIREBASE CLOUD MESSAGING (FCM) ---
             implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
+
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.2")) // Tenta uma versão recente
         }
 
         commonTest.dependencies {

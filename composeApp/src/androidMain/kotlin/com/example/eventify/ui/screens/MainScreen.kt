@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavController
 import com.example.eventify.di.AppModule
-import com.example.eventify.ui.Screen // <--- IMPORT CRÍTICO
+import com.example.eventify.ui.Screen
 import com.example.eventify.ui.components.BottomNavItem
 import com.example.eventify.ui.components.EventifyBottomBar
 import com.example.eventify.ui.screens.organizer.OrganizerDashboardScreen
@@ -34,8 +34,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(
     navController: NavController,
-    animatedVisibilityScope: AnimatedVisibilityScope, // Recebe o scope do NavHost
-    sharedTransitionScope: SharedTransitionScope      // Recebe o scope do Layout
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
 ) {
     var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -52,7 +52,7 @@ fun MainScreen(
         }
     }
 
-    // FCM Token
+    // Token FCM
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotBlank()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -70,7 +70,6 @@ fun MainScreen(
         }
     ) { innerPadding ->
 
-        // Animação entre Abas
         AnimatedContent(
             targetState = currentRoute,
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
@@ -80,14 +79,24 @@ fun MainScreen(
             }
         ) { targetRoute ->
             when (targetRoute) {
+                // 1. HOME
                 BottomNavItem.Home.route -> {
                     HomeScreenContent(
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onSeeAllClick = { currentRoute = BottomNavItem.Explore.route },
+
+                        // --- CORREÇÃO AQUI: Ligar o clique do sino ---
+                        onNotificationsClick = { navController.navigate(Screen.NOTIFICATIONS) },
+
+                        // (Opcional) Ligar o clique do Perfil no topo da Home
+                        onProfileClick = { currentRoute = BottomNavItem.Profile.route },
+
                         animatedVisibilityScope = animatedVisibilityScope,
                         sharedTransitionScope = sharedTransitionScope
                     )
                 }
+
+                // 2. EXPLORE
                 BottomNavItem.Explore.route -> {
                     val viewModel = remember { AppModule.provideExploreViewModel() }
                     ExploreScreen(
@@ -98,12 +107,16 @@ fun MainScreen(
                         sharedTransitionScope = sharedTransitionScope
                     )
                 }
+
+                // 3. MY EVENTS
                 BottomNavItem.MyEvents.route -> {
                     MyEvents(
                         userId = currentUserId,
                         onEventClick = { ticketId -> navController.navigate(Screen.ticketDetail(ticketId, "My Ticket")) }
                     )
                 }
+
+                // 4. PROFILE
                 BottomNavItem.Profile.route -> {
                     ProfileScreen(
                         onLogoutClick = {

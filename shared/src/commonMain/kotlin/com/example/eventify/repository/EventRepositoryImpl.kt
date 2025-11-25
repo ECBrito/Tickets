@@ -3,6 +3,7 @@ package com.example.eventify.repository
 import com.example.eventify.model.Attendee
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
+import com.example.eventify.model.NotificationItem
 import com.example.eventify.model.Ticket
 import com.example.eventify.model.TicketValidationResult
 import com.example.eventify.model.UserProfile
@@ -309,5 +310,39 @@ class EventRepositoryImpl(
         } catch (e: Exception) {
             println("Erro no follow: ${e.message}")
         }
+    }
+
+    // --- NOTIFICAÇÕES ---
+    override fun getUserNotifications(userId: String): Flow<List<NotificationItem>> {
+        return usersCollection.document(userId).collection("notifications")
+            .snapshots
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    try {
+                        doc.data<NotificationItem>().copy(id = doc.id)
+                    } catch (e: Exception) { null }
+                }.sortedByDescending { it.timestamp }
+            }
+    }
+
+    override suspend fun markNotificationAsRead(userId: String, notificationId: String) {
+        try {
+            usersCollection.document(userId)
+                .collection("notifications")
+                .document(notificationId)
+                .update("isRead" to true)
+        } catch (e: Exception) { }
+    }
+
+    // Função auxiliar para criares dados de teste
+    override suspend fun createTestNotification(userId: String) {
+        val fakeNotification = NotificationItem(
+            title = "Bem-vindo ao Eventify!",
+            message = "Esta é a tua primeira notificação. Compra bilhetes agora!",
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+            isRead = false,
+            type = "success"
+        )
+        usersCollection.document(userId).collection("notifications").add(fakeNotification)
     }
 }
