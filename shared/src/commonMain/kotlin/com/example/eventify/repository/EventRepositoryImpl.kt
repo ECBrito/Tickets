@@ -1,6 +1,7 @@
 package com.example.eventify.repository
 
 import com.example.eventify.model.Attendee
+import com.example.eventify.model.ChatMessage
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.model.NotificationItem
@@ -384,5 +385,39 @@ class EventRepositoryImpl(
             println("Erro review: ${e.message}")
             false
         }
+    }
+
+    // --- CHAT ---
+    override fun getChatMessages(eventId: String): Flow<List<ChatMessage>> {
+        return eventsCollection.document(eventId).collection("chat")
+            .snapshots
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    try {
+                        doc.data<ChatMessage>().copy(id = doc.id)
+                    } catch (e: Exception) { null }
+                }.sortedBy { it.timestamp } // Ordem cronológica (antigas em cima, novas em baixo)
+            }
+    }
+
+    override suspend fun sendChatMessage(eventId: String, message: ChatMessage): Boolean {
+        return try {
+            eventsCollection.document(eventId).collection("chat").add(message)
+            true
+        } catch (e: Exception) {
+            println("Erro no chat: ${e.message}")
+            false
+        }
+    }
+
+    override fun hasTicketFlow(userId: String, eventId: String): Flow<Boolean> {
+        if (userId.isBlank() || eventId.isBlank()) return flowOf(false)
+
+        return ticketsCollection
+            .where { "userId" equalTo userId }
+            .where { "eventId" equalTo eventId }
+            .snapshots
+            .map { !it.documents.isEmpty() } // Retorna true se encontrou bilhetes
+            .catch { emit(false) }
     }
 }

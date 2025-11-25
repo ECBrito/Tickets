@@ -1,6 +1,7 @@
 package com.example.eventify.repository
 
 import com.example.eventify.model.Attendee
+import com.example.eventify.model.ChatMessage
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.model.NotificationItem
@@ -64,4 +65,8 @@ interface EventRepository {
     fun getReviews(eventId: String): Flow<List<Review>>
     suspend fun addReview(eventId: String, review: Review): Boolean
 
+    fun getChatMessages(eventId: String): Flow<List<ChatMessage>>
+    suspend fun sendChatMessage(eventId: String, message: ChatMessage): Boolean
+
+    fun hasTicketFlow(userId: String, eventId: String): Flow<Boolean>
 }

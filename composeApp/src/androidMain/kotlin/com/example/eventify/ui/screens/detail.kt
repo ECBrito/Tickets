@@ -12,25 +12,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -44,6 +37,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Attendee
+import com.example.eventify.model.ChatMessage
 import com.example.eventify.model.Comment
 import com.example.eventify.model.Event
 import com.example.eventify.model.Review
@@ -52,6 +46,9 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.serialization.InternalSerializationApi
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Cores
 private val BgDark = Color(0xFF0B0A12)
@@ -72,11 +69,14 @@ fun EventDetailScreen(
     sharedTransitionScope: SharedTransitionScope
 ) {
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
+
+    // Estados
     val event by viewModel.event.collectAsState()
     val comments by viewModel.comments.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
     val reviews by viewModel.reviews.collectAsState()
-    val isFollowing by viewModel.isFollowingOrganizer.collectAsState() // Estado de Follow
+    val chatMessages by viewModel.chatMessages.collectAsState() // Chat
+    val isFollowing by viewModel.isFollowingOrganizer.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -85,13 +85,17 @@ fun EventDetailScreen(
         containerColor = BgDark,
         bottomBar = {
             event?.let { currentEvent ->
-                BottomActionSection(
-                    isRegistered = viewModel.isRegistered,
-                    onRsvpClick = {
-                        if (viewModel.isRegistered) viewModel.toggleRsvp()
-                        else navController.navigate(Screen.purchase(currentEvent.id))
-                    }
-                )
+                // Oculta a barra de RSVP se estiver no Chat e já tiver bilhete (para dar espaço ao teclado)
+                // Se preferires manter sempre visível, remove o 'if'
+                if (selectedTab != 4 || !viewModel.isRegistered) {
+                    BottomActionSection(
+                        isRegistered = viewModel.isRegistered,
+                        onRsvpClick = {
+                            if (viewModel.isRegistered) viewModel.toggleRsvp()
+                            else navController.navigate(Screen.purchase(currentEvent.id))
+                        }
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -117,28 +121,21 @@ fun EventDetailScreen(
                         )
                     }
 
-                    // 2. Info + Attendees
+                    // 2. Info + Quem Vai
                     item {
-                        // Passamos o estado isFollowing e a ação toggleFollow
-                        InfoSection(
-                            event = event!!,
-                            isFollowing = isFollowing,
-                            onFollowClick = { viewModel.toggleFollow() }
-                        )
+                        InfoSection(event = event!!, isFollowing = isFollowing, onFollowClick = { viewModel.toggleFollow() })
                         Spacer(modifier = Modifier.height(24.dp))
-
                         AttendeesPreviewSection(allAttendees = attendees)
-
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 3. Tabs
+                    // 3. Tabs (Agora com Scroll e Chat)
                     item {
                         TabsSection(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 4. Conteúdo
+                    // 4. Conteúdo Dinâmico
                     when (selectedTab) {
                         0 -> { // Details
                             item {
@@ -152,7 +149,7 @@ fun EventDetailScreen(
                                 }
                             }
                         }
-                        1 -> { // Attendees
+                        1 -> { // Attendees (Lista completa - placeholder)
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                                     if (attendees.isEmpty()) Text("No one yet.", color = TextGray)
@@ -160,7 +157,7 @@ fun EventDetailScreen(
                                 }
                             }
                         }
-                        2 -> { // Comments
+                        2 -> { // Comments (Perguntas e Respostas)
                             item {
                                 CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
                                 Spacer(modifier = Modifier.height(24.dp))
@@ -190,6 +187,32 @@ fun EventDetailScreen(
                             else items(reviews) { review -> ReviewItem(review); Spacer(modifier = Modifier.height(16.dp)) }
                             item { Spacer(modifier = Modifier.height(40.dp)) }
                         }
+                        4 -> { // Chat (Community Hub) - A ABA QUE FALTAVA
+                            if (viewModel.isRegistered) {
+                                // Se tiver bilhete: Mostra Chat
+                                if (chatMessages.isEmpty()) {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                                            Text("Chat is empty. Say hello! 👋", color = TextGray)
+                                        }
+                                    }
+                                } else {
+                                    items(chatMessages) { msg ->
+                                        ChatBubble(message = msg, isMe = msg.userId == userId)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                }
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    // Input do Chat (Reutilizamos o visual do input de comentários por simplicidade)
+                                    CommentInputSection(onSendComment = { viewModel.sendMessage(it) })
+                                    Spacer(modifier = Modifier.height(80.dp)) // Espaço extra para o teclado
+                                }
+                            } else {
+                                // Se não tiver bilhete: Mostra Cadeado
+                                item { LockedChatState() }
+                            }
+                        }
                     }
                 }
             }
@@ -197,65 +220,127 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES ---
+// --- COMPONENTES DE CHAT ---
+
+@Composable
+fun LockedChatState() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Lock, null, tint = TextGray, modifier = Modifier.size(48.dp))
+        Spacer(Modifier.height(16.dp))
+        Text("Exclusive Area", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Buy a ticket to join the event chat!", style = MaterialTheme.typography.bodyMedium, color = TextGray)
+    }
+}
 
 @OptIn(InternalSerializationApi::class)
 @Composable
-fun InfoSection(
-    event: Event,
-    isFollowing: Boolean, // <--- Parâmetro Novo
-    onFollowClick: () -> Unit // <--- Parâmetro Novo
-) {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-
-        // Data
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+fun ChatBubble(message: ChatMessage, isMe: Boolean) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+    ) {
+        if (!isMe) {
+            Text(message.userName, style = MaterialTheme.typography.labelSmall, color = TextGray, modifier = Modifier.padding(start = 8.dp, bottom = 2.dp))
         }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Local
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Organizador + Follow
-        Row(
-            modifier = Modifier
-                .border(1.dp, TextGray.copy(alpha = 0.3f), RoundedCornerShape(50))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            color = if (isMe) AccentPurple else ChipBg,
+            shape = RoundedCornerShape(
+                topStart = 16.dp, topEnd = 16.dp,
+                bottomStart = if (isMe) 16.dp else 4.dp,
+                bottomEnd = if (isMe) 4.dp else 16.dp
+            ),
+            modifier = Modifier.widthIn(max = 280.dp)
         ) {
-            Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark)
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
-
-            // Separador e Botão Follow
-            Spacer(modifier = Modifier.width(12.dp))
-            Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape))
-            Spacer(modifier = Modifier.width(12.dp))
-
             Text(
-                text = if (isFollowing) "Following" else "Follow",
-                color = if (isFollowing) TextGray else AccentPurple,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable { onFollowClick() }
+                text = message.text,
+                color = if (isMe) AccentPurpleDark else TextWhite,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
 }
 
-// --- RESTANTES COMPONENTES (Mantidos iguais para não quebrar) ---
+// --- COMPONENTES VISUAIS GERAIS ---
+
+@Composable
+fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    val tabs = listOf("Details", "Attendees", "Comments", "Reviews", "Chat")
+
+    // CORREÇÃO: Usar ScrollableTabRow para não ficar apertado
+    ScrollableTabRow(
+        selectedTabIndex = selectedTab,
+        containerColor = BgDark,
+        contentColor = AccentPurple,
+        edgePadding = 16.dp, // Espaço no início
+        indicator = { tabPositions ->
+            TabRowDefaults.SecondaryIndicator(
+                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                color = AccentPurple
+            )
+        },
+        divider = { HorizontalDivider(color = TextGray.copy(alpha = 0.2f)) }
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTab == index,
+                onClick = { onTabSelected(index) },
+                text = {
+                    Text(
+                        text = title,
+                        color = if (selectedTab == index) TextWhite else TextGray,
+                        fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
+@Composable
+fun HeaderSection(
+    event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope
+) {
+    val context = LocalContext.current
+    with(sharedTransitionScope) {
+        Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
+            AsyncImage(
+                model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope)
+            )
+            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite) }
+                IconButton(onClick = { val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this: ${event.title}"); type = "text/plain" }; context.startActivity(Intent.createChooser(sendIntent, "Share")); onShareClick() }, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.Default.Share, "Share", tint = TextWhite) }
+            }
+            Text(event.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = TextWhite, modifier = Modifier.align(Alignment.BottomStart).padding(20.dp))
+        }
+    }
+}
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun InfoSection(event: Event, isFollowing: Boolean, onFollowClick: () -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.width(12.dp)); Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape)); Spacer(modifier = Modifier.width(12.dp))
+            Text(text = if (isFollowing) "Following" else "Follow", color = if (isFollowing) TextGray else AccentPurple, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { onFollowClick() })
+        }
+    }
+}
 
 @OptIn(InternalSerializationApi::class)
 @Composable
@@ -283,22 +368,8 @@ fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
-@Composable
-fun HeaderSection(event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit, animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope) {
-    val context = LocalContext.current
-    with(sharedTransitionScope) {
-        Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
-            AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope))
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite) }
-                IconButton(onClick = { val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this: ${event.title}"); type = "text/plain" }; context.startActivity(Intent.createChooser(sendIntent, "Share")); onShareClick() }, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.Default.Share, "Share", tint = TextWhite) }
-            }
-            Text(event.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = TextWhite, modifier = Modifier.align(Alignment.BottomStart).padding(20.dp))
-        }
-    }
-}
+// ... (LocationMapSection, CommentInputSection, CommentItem, AboutSection, TagsSection, BottomActionSection, ReviewInputSection, ReviewItem, RatingSummary)
+// Estes componentes já estavam corretos no passo anterior. Copia se faltar, mas o essencial está acima.
 
 @Composable
 fun LocationMapSection(locationName: String) {
@@ -307,7 +378,7 @@ fun LocationMapSection(locationName: String) {
         Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
         Spacer(modifier = Modifier.height(12.dp))
         Box(modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF2C2C3E)).clickable {
-            val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
+            val gmmIntentUri =  Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
             try { context.startActivity(Intent(Intent.ACTION_VIEW, gmmIntentUri).setPackage("com.google.android.apps.maps")) }
             catch (e: Exception) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(locationName)}"))) }
         }) {
@@ -375,64 +446,16 @@ fun RatingSummary(rating: Double, count: Int) {
 @OptIn(InternalSerializationApi::class)
 @Composable
 fun ReviewItem(review: Review) {
-    Row(
-        // CORREÇÃO: Usar verticalAlignment em vez de crossAxisAlignment
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(horizontal = 20.dp)
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = ChipBg,
-            modifier = Modifier.size(40.dp)
-        ) {
-            if (review.userPhotoUrl != null) {
-                AsyncImage(
-                    model = review.userPhotoUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    Icons.Default.Person,
-                    null,
-                    tint = TextGray,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(horizontal = 20.dp)) {
+        Surface(shape = CircleShape, color = ChipBg, modifier = Modifier.size(40.dp)) {
+            if (review.userPhotoUrl != null) AsyncImage(model = review.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop) else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
         }
-
         Spacer(modifier = Modifier.width(12.dp))
-
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(review.userName, color = TextWhite, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.width(8.dp))
-                Row {
-                    repeat(review.rating) {
-                        Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(14.dp))
-                    }
-                }
-            }
+            Row(verticalAlignment = Alignment.CenterVertically) { Text(review.userName, color = TextWhite, fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Row { repeat(review.rating) { Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(14.dp)) } } }
             Spacer(modifier = Modifier.height(4.dp))
             Text(review.comment, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
         }
-    }
-}
-
-@Composable
-fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("Details", "Attendees", "Comments", "Reviews")
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            tabs.forEachIndexed { index, title ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onTabSelected(index) }) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, color = if (selectedTab == index) TextWhite else TextGray, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal)
-                    if (selectedTab == index) { Spacer(modifier = Modifier.height(8.dp)); Box(modifier = Modifier.width(40.dp).height(3.dp).background(AccentPurple, RoundedCornerShape(2.dp))) }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(1.dp))
-        HorizontalDivider(color = TextGray.copy(alpha = 0.2f), thickness = 1.dp)
     }
 }
 
