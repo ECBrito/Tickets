@@ -10,6 +10,7 @@ import android.os.Vibrator
 import android.util.Log
 import android.view.ViewGroup
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -176,6 +177,7 @@ fun ScanTicketScreen(
     }
 }
 
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 fun CameraPreview(onBarcodeScanned: (String?) -> Unit) {
     val context = LocalContext.current

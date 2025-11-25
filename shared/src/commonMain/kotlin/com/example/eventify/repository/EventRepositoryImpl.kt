@@ -420,4 +420,22 @@ class EventRepositoryImpl(
             .map { !it.documents.isEmpty() } // Retorna true se encontrou bilhetes
             .catch { emit(false) }
     }
+
+    override suspend fun getUserTicketCount(userId: String): Int {
+        return try {
+            val snapshot = ticketsCollection.where { "userId" equalTo userId }.get()
+            snapshot.documents.size
+        } catch (e: Exception) { 0 }
+    }
+
+    override suspend fun getUserCommentCount(userId: String): Int {
+        return try {
+            // Nota: collectionGroup procura em TODAS as sub-coleções 'comments' de todos os eventos
+            val snapshot = firestore.collectionGroup("comments").where { "userId" equalTo userId }.get()
+            snapshot.documents.size
+        } catch (e: Exception) {
+            println("Erro contagem comments: ${e.message}")
+            0
+        }
+    }
 }

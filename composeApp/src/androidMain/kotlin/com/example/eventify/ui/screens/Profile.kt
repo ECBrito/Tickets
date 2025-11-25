@@ -1,10 +1,12 @@
 package com.example.eventify.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
@@ -21,11 +23,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
+import com.example.eventify.model.Badge // <--- NOVO
 import com.example.eventify.model.UserProfile
 import com.example.eventify.ui.theme.EventifyTheme
 import kotlinx.serialization.InternalSerializationApi
+
+// Cores das Medalhas
+private val Bronze = Color(0xFFCD7F32)
+private val Silver = Color(0xFFC0C0C0)
+private val Gold = Color(0xFFFFD700)
 
 @OptIn(InternalSerializationApi::class)
 @Composable
@@ -33,10 +42,12 @@ fun ProfileScreen(
     onLogoutClick: () -> Unit,
     onOrganizerClick: () -> Unit,
     onEditProfileClick: () -> Unit,
-    onInterestsClick: () -> Unit // <--- NOVO PARÂMETRO
+    onInterestsClick: () -> Unit
 ) {
-    val viewModel = remember { AppModule.provideEditProfileViewModel() }
+    // Usamos o novo ViewModel que tem os badges
+    val viewModel = remember { AppModule.provideProfileViewModel() }
     val profile by viewModel.profile.collectAsState()
+    val badges by viewModel.badges.collectAsState() // <--- ESTADO DAS MEDALHAS
 
     Column(
         modifier = Modifier
@@ -46,7 +57,16 @@ fun ProfileScreen(
     ) {
         ProfileHeader(profile)
 
-        // --- Botão para mudar para Organizador ---
+        // --- NOVA SECÇÃO: BADGES ---
+        if (badges.isNotEmpty()) {
+            BadgesSection(badges)
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+        }
+
+        // Botão Organizador
         Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
             Button(
                 onClick = onOrganizerClick,
@@ -68,41 +88,23 @@ fun ProfileScreen(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
 
-        // Definições da Conta
         SettingsSection(title = "Account") {
-            SettingsItem(
-                icon = Icons.Default.Person,
-                title = "Personal Information",
-                onClick = onEditProfileClick
-            )
-            SettingsItem(icon = Icons.Default.Payment, title = "Payment Methods", onClick = {})
-            SettingsItem(icon = Icons.Default.Security, title = "Security", onClick = {})
+            SettingsItem(Icons.Default.Person, "Personal Information", onClick = onEditProfileClick)
+            SettingsItem(Icons.Default.Payment, "Payment Methods", onClick = {})
+            SettingsItem(Icons.Default.Security, "Security", onClick = {})
         }
 
-        // Preferências
         SettingsSection(title = "Preferences") {
-            // --- BOTÃO DE INTERESSES ---
-            SettingsItem(
-                icon = Icons.Default.Favorite,
-                title = "My Interests",
-                onClick = onInterestsClick // <--- LIGAÇÃO
-            )
-
-            SettingsItem(icon = Icons.Default.Notifications, title = "Notifications", onClick = {})
-            SettingsItem(icon = Icons.Default.Language, title = "Language", value = "English (US)", onClick = {})
+            SettingsItem(Icons.Default.Favorite, "My Interests", onClick = onInterestsClick)
+            SettingsItem(Icons.Default.Notifications, "Notifications", onClick = {})
+            SettingsItem(Icons.Default.Language, "Language", value = "English (US)", onClick = {})
 
             var isDarkTheme by remember { mutableStateOf(true) }
-            SettingsSwitchItem(
-                icon = Icons.Default.DarkMode,
-                title = "Dark Mode",
-                checked = isDarkTheme,
-                onCheckedChange = { isDarkTheme = it }
-            )
+            SettingsSwitchItem(Icons.Default.DarkMode, "Dark Mode", checked = isDarkTheme, onCheckedChange = { isDarkTheme = it })
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Botão de Logout
         Box(modifier = Modifier.padding(horizontal = 24.dp)) {
             Button(
                 onClick = onLogoutClick,
@@ -110,17 +112,65 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Icon(Icons.AutoMirrored.Filled.Logout, null, tint = MaterialTheme.colorScheme.onErrorContainer)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Sign Out", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
             }
         }
-
         Spacer(modifier = Modifier.height(120.dp))
     }
 }
 
-// ... (Os restantes componentes auxiliares: ProfileHeader, SettingsSection, etc. mantêm-se iguais)
+@Composable
+fun BadgesSection(badges: List<Badge>) {
+    Column(modifier = Modifier.padding(vertical = 16.dp)) {
+        Text(
+            "Achievements",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            badges.forEach { badge ->
+                BadgeItem(badge)
+            }
+        }
+    }
+}
+
+@Composable
+fun BadgeItem(badge: Badge) {
+    val color = when(badge) {
+        Badge.ROOKIE -> Bronze
+        Badge.SOCIAL -> Silver
+        Badge.VIP -> Gold
+    }
+    val icon = when(badge) {
+        Badge.ROOKIE -> Icons.Default.ConfirmationNumber
+        Badge.SOCIAL -> Icons.Default.Comment
+        Badge.VIP -> Icons.Default.EmojiEvents
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .background(color.copy(alpha = 0.2f), CircleShape)
+                .border(2.dp, color, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(32.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(badge.title, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
 @OptIn(InternalSerializationApi::class)
 @Composable
 fun ProfileHeader(profile: UserProfile) {
@@ -136,6 +186,8 @@ fun ProfileHeader(profile: UserProfile) {
     }
 }
 
+// ... (SettingsSection, SettingsItem, SettingsSwitchItem mantêm-se iguais)
+// Copia do ficheiro anterior se necessário
 @Composable
 fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {

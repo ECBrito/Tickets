@@ -83,4 +83,8 @@ object AppModule {
     fun provideInterestsViewModel(): InterestsViewModel {
         return InterestsViewModel(eventRepository, currentUserId)
     }
+
+    fun provideProfileViewModel(): ProfileViewModel {
+        return ProfileViewModel(eventRepository, currentUserId)
+    }
 }

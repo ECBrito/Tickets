@@ -69,4 +69,8 @@ interface EventRepository {
     suspend fun sendChatMessage(eventId: String, message: ChatMessage): Boolean
 
     fun hasTicketFlow(userId: String, eventId: String): Flow<Boolean>
+
+    // --- GAMIFICATION ---
+    suspend fun getUserTicketCount(userId: String): Int
+    suspend fun getUserCommentCount(userId: String): Int
 }
