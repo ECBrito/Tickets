@@ -34,6 +34,7 @@ kotlin {
 
             // --- UTILITÁRIOS (Para evitar conflitos de Futures) ---
             implementation("com.google.guava:guava:31.1-android")
+            implementation("com.google.android.gms:play-services-location:21.1.0")
         }
 
         commonMain.dependencies {
@@ -116,5 +117,6 @@ android {
 }
 
 dependencies {
+    implementation(libs.play.services.location)
     debugImplementation(compose.uiTooling)
 }

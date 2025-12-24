@@ -2,6 +2,8 @@ package com.example.eventify.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -17,16 +19,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import com.example.eventify.di.AppModule
 import com.example.eventify.ui.Screen
 import com.example.eventify.ui.components.BottomNavItem
 import com.example.eventify.ui.components.EventifyBottomBar
+import com.example.eventify.ui.utils.getCurrentLocation
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalSharedTransitionApi::class)
@@ -36,30 +41,56 @@ fun MainScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
-    // Estado para controlar qual tab está ativa
+    // 1. Estado da Rota e Contexto
     var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
-
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val repository = remember { AppModule.eventRepository }
-    val scope = rememberCoroutineScope()
 
-    // --- 1. PEDIR PERMISSÃO DE NOTIFICAÇÕES (Android 13+) ---
+    // 2. Instanciar ViewModels (O HomeViewModel é partilhado entre GPS e UI)
+    val homeViewModel = remember { AppModule.provideHomeViewModel() }
+
+    // 3. Lançador de Permissão de GPS (Prioridade)
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            getCurrentLocation(context) { lat, lon ->
+                homeViewModel.updateUserLocation(lat, lon)
+            }
+        }
+    }
+
+    // 4. Lógica de Inicialização (GPS + Notificações)
+    LaunchedEffect(Unit) {
+        // Pede GPS imediatamente
+        locationPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+    // 5. Pedir Notificações (Android 13+) com um pequeno delay para não atropelar o GPS
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
-
         LaunchedEffect(Unit) {
+            delay(1500) // Espera 1.5s antes de pedir notificações
             if (!notificationPermission.status.isGranted) {
                 notificationPermission.launchPermissionRequest()
             }
         }
     }
 
-    // --- 2. OBTER E GUARDAR O TOKEN FCM ---
+    // 6. Token do Firebase Cloud Messaging
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotBlank()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    // Grava o token na base de dados para receber notificações
                     scope.launch {
                         repository.updateUserFcmToken(currentUserId, task.result)
                     }
@@ -77,7 +108,6 @@ fun MainScreen(
         }
     ) { innerPadding ->
 
-        // Animação de transição entre abas
         AnimatedContent(
             targetState = currentRoute,
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
@@ -88,25 +118,25 @@ fun MainScreen(
         ) { targetRoute ->
 
             when (targetRoute) {
-                // 1. HOME
+                // --- ABA HOME ---
                 BottomNavItem.Home.route -> {
                     HomeScreenContent(
+                        viewModel = homeViewModel, // Passa o ViewModel aqui
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onSeeAllClick = { currentRoute = BottomNavItem.Explore.route },
+                        onSearchClick = { /* Opcional: navController.navigate(Screen.SEARCH) */ },
                         onNotificationsClick = { navController.navigate(Screen.NOTIFICATIONS) },
                         onProfileClick = { currentRoute = BottomNavItem.Profile.route },
-
-                        // Scopes para Hero Animation
                         animatedVisibilityScope = animatedVisibilityScope,
                         sharedTransitionScope = sharedTransitionScope
                     )
                 }
 
-                // 2. EXPLORE
+                // --- ABA EXPLORE ---
                 BottomNavItem.Explore.route -> {
-                    val viewModel = remember { AppModule.provideExploreViewModel() }
+                    val exploreViewModel = remember { AppModule.provideExploreViewModel() }
                     ExploreScreen(
-                        viewModel = viewModel,
+                        viewModel = exploreViewModel,
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onMapClick = { navController.navigate(Screen.EXPLORE_MAP) },
                         animatedVisibilityScope = animatedVisibilityScope,
@@ -114,32 +144,26 @@ fun MainScreen(
                     )
                 }
 
-                // 3. MY EVENTS (Carteira + Favoritos)
+                // --- ABA MY EVENTS ---
                 BottomNavItem.MyEvents.route -> {
                     MyEvents(
                         userId = currentUserId,
-                        // Clique num Bilhete -> Abre QR Code
                         onTicketClick = { ticketId ->
                             navController.navigate(Screen.ticketDetail(ticketId, "My Ticket"))
                         },
-                        // Clique num Favorito -> Abre Detalhes para comprar
                         onFavoriteClick = { eventId ->
                             navController.navigate(Screen.eventDetail(eventId))
                         }
                     )
                 }
 
-                // 4. PROFILE
+                // --- ABA PROFILE ---
                 BottomNavItem.Profile.route -> {
                     ProfileScreen(
                         onLogoutClick = {
-                            try {
-                                FirebaseAuth.getInstance().signOut()
-                            } catch (e: Exception) { }
-
+                            try { FirebaseAuth.getInstance().signOut() } catch (e: Exception) { }
                             navController.navigate(Screen.AUTH_ROOT) {
                                 popUpTo(0) { inclusive = true }
-                                launchSingleTop = true
                             }
                         },
                         onOrganizerClick = { navController.navigate(Screen.ORGANIZER_DASHBOARD) },
@@ -148,10 +172,7 @@ fun MainScreen(
                     )
                 }
 
-                else -> {
-                    // Fallback seguro
-                    Box(Modifier.fillMaxSize())
-                }
+                else -> Box(Modifier.fillMaxSize())
             }
         }
     }

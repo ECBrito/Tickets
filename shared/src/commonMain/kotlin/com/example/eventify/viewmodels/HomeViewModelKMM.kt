@@ -7,16 +7,12 @@ import com.example.eventify.model.EventCategory
 import com.example.eventify.repository.EventRepository
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.InternalSerializationApi
+import kotlin.math.*
 
-@OptIn(InternalSerializationApi::class) // Aplica a toda a classe para limpar o código
+@OptIn(InternalSerializationApi::class)
 class HomeViewModelKMM(
     private val repository: EventRepository
 ) : ViewModel() {
@@ -24,102 +20,102 @@ class HomeViewModelKMM(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // Categoria Selecionada na Home (null = "All")
     private val _selectedCategory = MutableStateFlow<EventCategory?>(null)
     val selectedCategory: StateFlow<EventCategory?> = _selectedCategory
 
-    // Interesses do utilizador (carregados do Perfil)
     private val _userInterests = MutableStateFlow<List<String>>(emptyList())
+
+    // Coordenadas guardadas (Privadas para o ViewModel)
+    private val userLat = MutableStateFlow<Double?>(null)
+    private val userLon = MutableStateFlow<Double?>(null)
 
     private val currentUserId = Firebase.auth.currentUser?.uid ?: ""
 
-    // --- FLOWS ---
-
-    // 1. Eventos Crus da BD
+    // --- FLOWS BASE ---
     private val allEventsFlow = repository.events
 
-    // 2. Favoritos do User
     private val favoritesFlow = if (currentUserId.isNotEmpty()) {
         repository.getFavoriteEventIds(currentUserId)
     } else {
         flowOf(emptyList())
     }
 
-    // 3. Base Combinada: Eventos + Estado isSaved
     private val eventsWithFavs = combine(allEventsFlow, favoritesFlow) { events, favIds ->
         events.map { event ->
             event.copy(isSaved = favIds.contains(event.id))
-        }
+        }.sortedBy { it.dateTime }
     }
 
-    // --- LISTAS FINAIS PARA A UI ---
+    // --- LISTAS PARA A UI ---
 
-    // A. Featured: Os primeiros 3 eventos (sempre visíveis)
+    // 1. Featured
     val featuredEvents: StateFlow<List<Event>> = eventsWithFavs
-        .combine(favoritesFlow) { events, _ ->
-            events.take(3)
+        .map { events ->
+            events.filter { it.isFeatured }.take(5)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // B. Upcoming: O resto dos eventos, FILTRADO pela categoria selecionada (Chips)
+    // 2. Upcoming (Com lógica de proximidade reativa)
     val upcomingEvents: StateFlow<List<Event>> = combine(
         eventsWithFavs,
-        _selectedCategory
-    ) { events, category ->
-        // Ignora os 3 primeiros que já estão no Featured
-        val remaining = events.drop(3)
+        _selectedCategory,
+        userLat,
+        userLon
+    ) { events, category, lat, lon ->
+        var filtered = events
 
-        if (category == null) {
-            remaining
-        } else {
-            remaining.filter { event ->
-                event.category.equals(category.name, ignoreCase = true)
+        if (category != null) {
+            filtered = filtered.filter { it.category.equals(category.name, ignoreCase = true) }
+        }
+
+        if (lat != null && lon != null) {
+            filtered = filtered.filter { event ->
+                val distance = calculateDistance(lat, lon, event.latitude, event.longitude)
+                distance <= 50.0 // Filtro de 50km
             }
         }
+        filtered
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // C. For You: Eventos recomendados baseados nos interesses do perfil
+    // 3. For You
     val forYouEvents: StateFlow<List<Event>> = combine(
         eventsWithFavs,
         _userInterests
     ) { events, interests ->
-        if (interests.isEmpty()) {
-            emptyList() // Se não escolheu interesses, não mostra a secção
-        } else {
+        if (interests.isEmpty()) emptyList()
+        else {
             events.filter { event ->
-                // Verifica se a categoria do evento está na lista de interesses do user
-                interests.any { userInterest ->
-                    userInterest.equals(event.category, ignoreCase = true)
-                }
+                interests.any { it.equals(event.category, ignoreCase = true) }
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // 1. Carregar Perfil para obter interesses
+        loadInitialData()
+    }
+
+    private fun loadInitialData() {
         viewModelScope.launch {
             if (currentUserId.isNotBlank()) {
-                val profile = repository.getUserProfile(currentUserId)
-                if (profile != null) {
+                repository.getUserProfile(currentUserId)?.let { profile ->
                     _userInterests.value = profile.interests
                 }
             }
-        }
-
-        // 2. Gerir Loading
-        viewModelScope.launch {
             eventsWithFavs.collect { _isLoading.value = false }
         }
+    }
+
+    // --- A FUNÇÃO QUE FALTAVA ---
+    // Esta função é chamada pela HomeScreen para injetar o GPS no ViewModel
+    fun updateUserLocation(lat: Double, lon: Double) {
+        userLat.value = lat
+        userLon.value = lon
     }
 
     // --- AÇÕES ---
 
     fun selectCategory(category: EventCategory?) {
-        if (_selectedCategory.value == category) {
-            _selectedCategory.value = null
-        } else {
-            _selectedCategory.value = category
-        }
+        _selectedCategory.value = if (_selectedCategory.value == category) null else category
     }
 
     fun toggleSave(eventId: String) {
@@ -129,5 +125,16 @@ class HomeViewModelKMM(
         }
     }
 
-    fun loadData() {}
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371
+        val dLat = (lat2 - lat1).toRadians()
+        val dLon = (lon2 - lon1).toRadians()
+        val a = sin(dLat / 2).pow(2) +
+                cos(lat1.toRadians()) * cos(lat2.toRadians()) *
+                sin(dLon / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return r * c
+    }
+
+    private fun Double.toRadians() = this * PI / 180.0
 }
