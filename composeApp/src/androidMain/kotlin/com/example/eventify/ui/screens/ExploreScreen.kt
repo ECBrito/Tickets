@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
@@ -27,48 +29,30 @@ import com.example.eventify.model.FilterState
 import com.example.eventify.ui.components.FilterBottomSheet
 import kotlinx.serialization.InternalSerializationApi
 
-// =====================================================================
-// TELA EXPLORE
-// =====================================================================
-
-@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class) // <--- Necessário para as animações
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
 fun ExploreScreen(
     onEventClick: (String) -> Unit,
     onMapClick: () -> Unit = {},
     viewModel: com.example.eventify.viewmodels.ExploreViewModelKMM = remember { AppModule.provideExploreViewModel() },
-
-    // --- NOVOS PARÂMETROS (Para corrigir o erro de compilação) ---
-    // Colocamos como nullable (? = null) para facilitar previews ou chamadas simples se necessário
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     sharedTransitionScope: SharedTransitionScope? = null
 ) {
-    // Estados do ViewModel
     val events by viewModel.events.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Estado local para a UI
     var showFilters by remember { mutableStateOf(false) }
     var currentFilterState by remember { mutableStateOf(FilterState()) }
 
     Scaffold(
         containerColor = Color(0xFF0B0A12)
     ) { innerPadding ->
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-            ) {
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- TOPO: Barra de Pesquisa + Botão de Mapa ---
+                // TOPO: Pesquisa + Botão de Mapa
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -82,22 +66,22 @@ fun ExploreScreen(
                     FilledIconButton(
                         onClick = onMapClick,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF151520)),
-                        shape = MaterialTheme.shapes.medium
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Map, contentDescription = "Map View", tint = Color.White)
+                        Icon(Icons.Default.Map, contentDescription = "Ver Mapa", tint = Color.White)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- CABEÇALHO DA LISTA + BOTÃO DE FILTROS ---
+                // CABEÇALHO + FILTROS
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (searchQuery.isEmpty()) "Upcoming Events" else "Search Results",
+                        text = if (searchQuery.isEmpty()) "Próximos Eventos" else "Resultados",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -105,29 +89,24 @@ fun ExploreScreen(
 
                     Button(
                         onClick = { showFilters = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF151520),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF151520))
                     ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Tune, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Filters")
+                        Text("Filtros")
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- LISTA DE EVENTOS ---
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        CircularProgressIndicator(color = Color(0xFFD0BCFF))
                     }
                 } else {
                     if (events.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No events found.", color = Color.Gray)
+                            Text("Nenhum evento encontrado.", color = Color.Gray)
                         }
                     } else {
                         LazyColumn(
@@ -146,13 +125,12 @@ fun ExploreScreen(
                 }
             }
 
-            // --- MODAL DE FILTROS ---
             if (showFilters) {
                 FilterBottomSheet(
                     initialState = currentFilterState,
-                    onApply = { newFilterState ->
-                        currentFilterState = newFilterState
-                        viewModel.updateFilters(newFilterState)
+                    onApply = { newFilter ->
+                        currentFilterState = newFilter
+                        viewModel.updateFilters(newFilter)
                         showFilters = false
                     },
                     onDismiss = { showFilters = false }
@@ -162,125 +140,65 @@ fun ExploreScreen(
     }
 }
 
-// =====================================================================
-// COMPONENTES LOCAIS
-// =====================================================================
-
 @Composable
-fun ExploreSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun ExploreSearchBar(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = modifier,
-        placeholder = { Text("Search events or venues", color = Color.Gray) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon", tint = Color.Gray) },
+        placeholder = { Text("Pesquisar eventos ou locais", color = Color.Gray) },
+        leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
         shape = CircleShape,
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = Color.Gray,
             focusedContainerColor = Color(0xFF151520),
             unfocusedContainerColor = Color(0xFF151520),
             focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White
+            unfocusedTextColor = Color.White,
+            unfocusedBorderColor = Color.Transparent
         )
     )
 }
 
 @OptIn(InternalSerializationApi::class)
 @Composable
-fun ExploreEventCard(
-    event: Event,
-    onClick: () -> Unit,
-    onToggleFavorite: () -> Unit
-) {
+fun ExploreEventCard(event: Event, onClick: () -> Unit, onToggleFavorite: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF151520))
     ) {
         Column {
             AsyncImage(
                 model = event.imageUrl,
-                contentDescription = "Event Poster",
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.7f)
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.8f)
             )
 
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
 
-                InfoRow(icon = Icons.Default.CalendarMonth, text = event.dateTime)
-                InfoRow(icon = Icons.Default.LocationOn, text = event.locationName)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(event.locationName, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    val priceLabel = if (event.price == 0.0) "Grátis" else "${event.price}€"
+                    Text(priceLabel, color = if (event.price == 0.0) Color(0xFF00E096) else Color(0xFFD0BCFF), fontWeight = FontWeight.Bold)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val priceText = if (event.price == 0.0) "Free" else "$${event.price}"
-                    val priceColor = if (event.price == 0.0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
-
-                    Text(
-                        text = priceText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = priceColor
-                    )
-
-                    Button(
-                        onClick = onToggleFavorite,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
+                    IconButton(onClick = onToggleFavorite) {
                         Icon(
                             imageVector = if (event.isSaved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "Bookmark",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(18.dp)
+                            contentDescription = null,
+                            tint = Color(0xFFD0BCFF)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (event.isSaved) "Saved" else "Save", color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun InfoRow(icon: ImageVector, text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
     }
 }

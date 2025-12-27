@@ -26,8 +26,8 @@ class HomeViewModelKMM(
     private val _userInterests = MutableStateFlow<List<String>>(emptyList())
 
     // Coordenadas guardadas (Privadas para o ViewModel)
-    private val userLat = MutableStateFlow<Double?>(null)
-    private val userLon = MutableStateFlow<Double?>(null)
+    val userLat = MutableStateFlow<Double?>(null)
+    val userLon = MutableStateFlow<Double?>(null)
 
     private val currentUserId = Firebase.auth.currentUser?.uid ?: ""
 

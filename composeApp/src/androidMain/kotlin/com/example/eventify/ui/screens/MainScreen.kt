@@ -41,17 +41,21 @@ fun MainScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
-    // 1. Estado da Rota e Contexto
+    // 1. Definições Iniciais
     var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val repository = remember { AppModule.eventRepository }
 
-    // 2. Instanciar ViewModels (O HomeViewModel é partilhado entre GPS e UI)
+    // 2. VIEWMODEL (Criar primeiro para poder usar as propriedades abaixo)
     val homeViewModel = remember { AppModule.provideHomeViewModel() }
 
-    // 3. Lançador de Permissão de GPS (Prioridade)
+    // 3. COLETAR ESTADOS (userLat e userLon agora existem para o compilador)
+    val userLat by homeViewModel.userLat.collectAsState(initial = null)
+    val userLon by homeViewModel.userLon.collectAsState(initial = null)
+
+    // 4. Lançador de Permissão de GPS
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -64,36 +68,29 @@ fun MainScreen(
         }
     }
 
-    // 4. Lógica de Inicialização (GPS + Notificações)
     LaunchedEffect(Unit) {
-        // Pede GPS imediatamente
         locationPermissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
         )
     }
 
-    // 5. Pedir Notificações (Android 13+) com um pequeno delay para não atropelar o GPS
+    // 5. Permissão de Notificações (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
         LaunchedEffect(Unit) {
-            delay(1500) // Espera 1.5s antes de pedir notificações
+            delay(1500)
             if (!notificationPermission.status.isGranted) {
                 notificationPermission.launchPermissionRequest()
             }
         }
     }
 
-    // 6. Token do Firebase Cloud Messaging
+    // 6. Token FCM
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotBlank()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    scope.launch {
-                        repository.updateUserFcmToken(currentUserId, task.result)
-                    }
+                    scope.launch { repository.updateUserFcmToken(currentUserId, task.result) }
                 }
             }
         }
@@ -101,30 +98,25 @@ fun MainScreen(
 
     Scaffold(
         containerColor = Color(0xFF0B0A12),
-        bottomBar = {
-            EventifyBottomBar(
-                onNavigate = { route -> currentRoute = route }
-            )
-        }
+        bottomBar = { EventifyBottomBar(onNavigate = { route -> currentRoute = route }) }
     ) { innerPadding ->
 
         AnimatedContent(
             targetState = currentRoute,
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
             label = "MainTabs",
-            transitionSpec = {
-                fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
-            }
+            transitionSpec = { fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300)) }
         ) { targetRoute ->
 
             when (targetRoute) {
-                // --- ABA HOME ---
                 BottomNavItem.Home.route -> {
                     HomeScreenContent(
-                        viewModel = homeViewModel, // Passa o ViewModel aqui
+                        viewModel = homeViewModel,
+                        userLat = userLat,
+                        userLon = userLon,
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onSeeAllClick = { currentRoute = BottomNavItem.Explore.route },
-                        onSearchClick = { /* Opcional: navController.navigate(Screen.SEARCH) */ },
+                        onSearchClick = { /* Opcional: Navegar para pesquisa */ },
                         onNotificationsClick = { navController.navigate(Screen.NOTIFICATIONS) },
                         onProfileClick = { currentRoute = BottomNavItem.Profile.route },
                         animatedVisibilityScope = animatedVisibilityScope,
@@ -132,11 +124,8 @@ fun MainScreen(
                     )
                 }
 
-                // --- ABA EXPLORE ---
                 BottomNavItem.Explore.route -> {
-                    val exploreViewModel = remember { AppModule.provideExploreViewModel() }
                     ExploreScreen(
-                        viewModel = exploreViewModel,
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onMapClick = { navController.navigate(Screen.EXPLORE_MAP) },
                         animatedVisibilityScope = animatedVisibilityScope,
@@ -144,34 +133,25 @@ fun MainScreen(
                     )
                 }
 
-                // --- ABA MY EVENTS ---
                 BottomNavItem.MyEvents.route -> {
                     MyEvents(
                         userId = currentUserId,
-                        onTicketClick = { ticketId ->
-                            navController.navigate(Screen.ticketDetail(ticketId, "My Ticket"))
-                        },
-                        onFavoriteClick = { eventId ->
-                            navController.navigate(Screen.eventDetail(eventId))
-                        }
+                        onTicketClick = { tid -> navController.navigate(Screen.ticketDetail(tid, "O Meu Bilhete")) },
+                        onFavoriteClick = { eid -> navController.navigate(Screen.eventDetail(eid)) }
                     )
                 }
 
-                // --- ABA PROFILE ---
                 BottomNavItem.Profile.route -> {
                     ProfileScreen(
                         onLogoutClick = {
-                            try { FirebaseAuth.getInstance().signOut() } catch (e: Exception) { }
-                            navController.navigate(Screen.AUTH_ROOT) {
-                                popUpTo(0) { inclusive = true }
-                            }
+                            FirebaseAuth.getInstance().signOut()
+                            navController.navigate(Screen.AUTH_ROOT) { popUpTo(0) { inclusive = true } }
                         },
                         onOrganizerClick = { navController.navigate(Screen.ORGANIZER_DASHBOARD) },
                         onEditProfileClick = { navController.navigate(Screen.EDIT_PROFILE) },
                         onInterestsClick = { navController.navigate(Screen.INTERESTS) }
                     )
                 }
-
                 else -> Box(Modifier.fillMaxSize())
             }
         }

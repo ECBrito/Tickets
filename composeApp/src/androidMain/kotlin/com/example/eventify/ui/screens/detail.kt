@@ -2,7 +2,6 @@ package com.example.eventify.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.CalendarContract
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -24,6 +23,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,12 +43,7 @@ import com.example.eventify.model.Event
 import com.example.eventify.model.Review
 import com.example.eventify.ui.Screen
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import kotlinx.serialization.InternalSerializationApi
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 // Cores
 private val BgDark = Color(0xFF0B0A12)
@@ -70,12 +65,11 @@ fun EventDetailScreen(
 ) {
     val viewModel = remember { AppModule.provideEventDetailViewModel(eventId) }
 
-    // Estados
     val event by viewModel.event.collectAsState()
     val comments by viewModel.comments.collectAsState()
     val attendees by viewModel.attendees.collectAsState()
     val reviews by viewModel.reviews.collectAsState()
-    val chatMessages by viewModel.chatMessages.collectAsState() // Chat
+    val chatMessages by viewModel.chatMessages.collectAsState()
     val isFollowing by viewModel.isFollowingOrganizer.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -85,8 +79,6 @@ fun EventDetailScreen(
         containerColor = BgDark,
         bottomBar = {
             event?.let { currentEvent ->
-                // Oculta a barra de RSVP se estiver no Chat e já tiver bilhete (para dar espaço ao teclado)
-                // Se preferires manter sempre visível, remove o 'if'
                 if (selectedTab != 4 || !viewModel.isRegistered) {
                     BottomActionSection(
                         isRegistered = viewModel.isRegistered,
@@ -104,13 +96,8 @@ fun EventDetailScreen(
                 CircularProgressIndicator(color = AccentPurple)
             }
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = paddingValues.calculateBottomPadding())
-            ) {
+            Column(modifier = Modifier.fillMaxSize().padding(bottom = paddingValues.calculateBottomPadding())) {
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    // 1. Header
                     item {
                         HeaderSection(
                             event = event!!,
@@ -121,7 +108,6 @@ fun EventDetailScreen(
                         )
                     }
 
-                    // 2. Info + Quem Vai
                     item {
                         InfoSection(event = event!!, isFollowing = isFollowing, onFollowClick = { viewModel.toggleFollow() })
                         Spacer(modifier = Modifier.height(24.dp))
@@ -129,41 +115,44 @@ fun EventDetailScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 3. Tabs (Agora com Scroll e Chat)
                     item {
                         TabsSection(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // 4. Conteúdo Dinâmico
                     when (selectedTab) {
-                        0 -> { // Details
+                        0 -> { // Detalhes
                             item {
                                 Column {
                                     AboutSection(description = event!!.description)
                                     Spacer(modifier = Modifier.height(24.dp))
-                                    LocationMapSection(locationName = event!!.locationName)
+                                    // PONTO 1: Passar as coordenadas reais aqui
+                                    LocationMapSection(
+                                        locationName = event!!.locationName,
+                                        lat = event!!.latitude,
+                                        lon = event!!.longitude
+                                    )
                                     Spacer(modifier = Modifier.height(24.dp))
                                     TagsSection(category = event!!.category, price = event!!.price)
                                     Spacer(modifier = Modifier.height(40.dp))
                                 }
                             }
                         }
-                        1 -> { // Attendees (Lista completa - placeholder)
+                        1 -> { // Participantes
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                                    if (attendees.isEmpty()) Text("No one yet.", color = TextGray)
-                                    else Text("${attendees.size} people going!", color = TextWhite)
+                                    if (attendees.isEmpty()) Text("Ninguém inscrito ainda.", color = TextGray)
+                                    else Text("${attendees.size} pessoas vão a este evento!", color = TextWhite)
                                 }
                             }
                         }
-                        2 -> { // Comments (Perguntas e Respostas)
+                        2 -> { // Comentários
                             item {
                                 CommentInputSection(onSendComment = { text -> viewModel.sendComment(text) })
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                             if (comments.isEmpty()) {
-                                item { Text("No comments yet.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
+                                item { Text("Sem comentários ainda.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
                             } else {
                                 items(comments) { comment ->
                                     CommentItem(comment)
@@ -172,7 +161,7 @@ fun EventDetailScreen(
                             }
                             item { Spacer(modifier = Modifier.height(40.dp)) }
                         }
-                        3 -> { // Reviews
+                        3 -> { // Avaliações
                             if (viewModel.isRegistered) {
                                 item {
                                     ReviewInputSection(onSubmit = { rating, text -> viewModel.submitReview(rating, text) })
@@ -183,17 +172,16 @@ fun EventDetailScreen(
                                 RatingSummary(rating = event!!.rating, count = event!!.reviewCount)
                                 Spacer(modifier = Modifier.height(16.dp))
                             }
-                            if (reviews.isEmpty()) item { Text("No reviews yet.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
+                            if (reviews.isEmpty()) item { Text("Sem avaliações ainda.", color = TextGray, modifier = Modifier.padding(horizontal = 20.dp)) }
                             else items(reviews) { review -> ReviewItem(review); Spacer(modifier = Modifier.height(16.dp)) }
                             item { Spacer(modifier = Modifier.height(40.dp)) }
                         }
-                        4 -> { // Chat (Community Hub) - A ABA QUE FALTAVA
+                        4 -> { // Chat
                             if (viewModel.isRegistered) {
-                                // Se tiver bilhete: Mostra Chat
                                 if (chatMessages.isEmpty()) {
                                     item {
                                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                                            Text("Chat is empty. Say hello! 👋", color = TextGray)
+                                            Text("O chat está vazio. Diz olá! 👋", color = TextGray)
                                         }
                                     }
                                 } else {
@@ -204,12 +192,10 @@ fun EventDetailScreen(
                                 }
                                 item {
                                     Spacer(modifier = Modifier.height(16.dp))
-                                    // Input do Chat (Reutilizamos o visual do input de comentários por simplicidade)
                                     CommentInputSection(onSendComment = { viewModel.sendMessage(it) })
-                                    Spacer(modifier = Modifier.height(80.dp)) // Espaço extra para o teclado
+                                    Spacer(modifier = Modifier.height(80.dp))
                                 }
                             } else {
-                                // Se não tiver bilhete: Mostra Cadeado
                                 item { LockedChatState() }
                             }
                         }
@@ -220,63 +206,67 @@ fun EventDetailScreen(
     }
 }
 
-// --- COMPONENTES DE CHAT ---
+// --- COMPONENTES ATUALIZADOS ---
 
 @Composable
-fun LockedChatState() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(Icons.Default.Lock, null, tint = TextGray, modifier = Modifier.size(48.dp))
-        Spacer(Modifier.height(16.dp))
-        Text("Exclusive Area", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Buy a ticket to join the event chat!", style = MaterialTheme.typography.bodyMedium, color = TextGray)
-    }
-}
+fun LocationMapSection(locationName: String, lat: Double, lon: Double) {
+    val context = LocalContext.current
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Localização", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(locationName, style = MaterialTheme.typography.bodyMedium, color = TextGray)
+        Spacer(modifier = Modifier.height(12.dp))
 
-@OptIn(InternalSerializationApi::class)
-@Composable
-fun ChatBubble(message: ChatMessage, isMe: Boolean) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
-    ) {
-        if (!isMe) {
-            Text(message.userName, style = MaterialTheme.typography.labelSmall, color = TextGray, modifier = Modifier.padding(start = 8.dp, bottom = 2.dp))
-        }
-        Surface(
-            color = if (isMe) AccentPurple else ChipBg,
-            shape = RoundedCornerShape(
-                topStart = 16.dp, topEnd = 16.dp,
-                bottomStart = if (isMe) 16.dp else 4.dp,
-                bottomEnd = if (isMe) 4.dp else 16.dp
-            ),
-            modifier = Modifier.widthIn(max = 280.dp)
+        // Cartão do Mapa com clique para abrir GPS real
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF1E1E2C))
+            .clickable {
+                // Abre o Maps nas coordenadas exatas (PONTO 1)
+                val uri = Uri.parse("geo:$lat,$lon?q=$lat,$lon($locationName)")
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                intent.setPackage("com.google.android.apps.maps")
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // Fallback se não tiver Google Maps
+                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                }
+            }
         ) {
+            // Placeholder visual do mapa (Podes trocar pela API do Static Maps se tiveres Key)
+            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF252535)))
+
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(Icons.Default.Map, null, tint = AccentPurple, modifier = Modifier.size(40.dp))
+                Spacer(Modifier.height(8.dp))
+                Text("Abrir no Google Maps", color = TextWhite, fontWeight = FontWeight.Bold)
+            }
+
             Text(
-                text = message.text,
-                color = if (isMe) AccentPurpleDark else TextWhite,
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium
+                "Tocar para navegar",
+                color = AccentPurple.copy(0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
             )
         }
     }
 }
 
-// --- COMPONENTES VISUAIS GERAIS ---
-
 @Composable
 fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("Details", "Attendees", "Comments", "Reviews", "Chat")
+    val tabs = listOf("Detalhes", "Quem vai", "Perguntas", "Avaliações", "Chat")
 
-    // CORREÇÃO: Usar ScrollableTabRow para não ficar apertado
     ScrollableTabRow(
         selectedTabIndex = selectedTab,
         containerColor = BgDark,
         contentColor = AccentPurple,
-        edgePadding = 16.dp, // Espaço no início
+        edgePadding = 16.dp,
         indicator = { tabPositions ->
             TabRowDefaults.SecondaryIndicator(
                 Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -301,44 +291,26 @@ fun TabsSection(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
 @Composable
-fun HeaderSection(
-    event: Event, onBackClick: () -> Unit, onShareClick: () -> Unit,
-    animatedVisibilityScope: AnimatedVisibilityScope, sharedTransitionScope: SharedTransitionScope
-) {
-    val context = LocalContext.current
-    with(sharedTransitionScope) {
-        Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
-            AsyncImage(
-                model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().sharedElement(rememberSharedContentState(key = "image-${event.id}"), animatedVisibilityScope)
-            )
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)))
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onBackClick, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextWhite) }
-                IconButton(onClick = { val sendIntent = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_TEXT, "Check this: ${event.title}"); type = "text/plain" }; context.startActivity(Intent.createChooser(sendIntent, "Share")); onShareClick() }, colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))) { Icon(Icons.Default.Share, "Share", tint = TextWhite) }
-            }
-            Text(event.title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = TextWhite, modifier = Modifier.align(Alignment.BottomStart).padding(20.dp))
-        }
+fun LockedChatState() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Lock, null, tint = TextGray, modifier = Modifier.size(48.dp))
+        Spacer(Modifier.height(16.dp))
+        Text("Área Exclusiva", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Compra um bilhete para entrar no chat!", style = MaterialTheme.typography.bodyMedium, color = TextGray)
     }
 }
 
-@OptIn(InternalSerializationApi::class)
 @Composable
-fun InfoSection(event: Event, isFollowing: Boolean, onFollowClick: () -> Unit) {
+fun AboutSection(description: String) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(event.locationName, style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Eventify Inc.", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.width(12.dp)); Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape)); Spacer(modifier = Modifier.width(12.dp))
-            Text(text = if (isFollowing) "Following" else "Follow", color = if (isFollowing) TextGray else AccentPurple, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { onFollowClick() })
-        }
+        Text("Sobre este Evento", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(description, style = MaterialTheme.typography.bodyMedium, color = TextGray, lineHeight = 24.sp)
     }
 }
 
@@ -349,42 +321,175 @@ fun AttendeesPreviewSection(allAttendees: List<Attendee>) {
     val visibleAttendees = allAttendees.filter { it.isPublic && it.photoUrl.isNotBlank() }.take(5)
     val totalCount = allAttendees.size
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Who's Going", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextWhite)
+        Text("Quem vai", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextWhite)
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (visibleAttendees.isNotEmpty()) {
-                Box(modifier = Modifier.width((30 * visibleAttendees.size).dp + 40.dp)) {
+                Box(modifier = Modifier.width((30 * visibleAttendees.size).dp + 10.dp)) {
                     visibleAttendees.forEachIndexed { index, attendee ->
-                        AsyncImage(model = attendee.photoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.padding(start = (28 * index).dp).size(40.dp).clip(CircleShape).border(2.dp, BgDark, CircleShape).zIndex(5f - index))
+                        AsyncImage(
+                            model = attendee.photoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.padding(start = (25 * index).dp).size(40.dp).clip(CircleShape).border(2.dp, BgDark, CircleShape).zIndex(5f - index)
+                        )
                     }
                 }
-            } else {
-                Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.size(32.dp))
-                Spacer(modifier = Modifier.width(8.dp))
             }
-            val remainingText = if (totalCount > 1) "+ $totalCount others going" else "is going"
+            val remainingText = if (totalCount > 1) "+ $totalCount pessoas inscritas" else "está inscrito"
             Text(remainingText, style = MaterialTheme.typography.bodyMedium, color = AccentPurple, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
-// ... (LocationMapSection, CommentInputSection, CommentItem, AboutSection, TagsSection, BottomActionSection, ReviewInputSection, ReviewItem, RatingSummary)
-// Estes componentes já estavam corretos no passo anterior. Copia se faltar, mas o essencial está acima.
-
 @Composable
-fun LocationMapSection(locationName: String) {
+fun BottomActionSection(isRegistered: Boolean, onRsvpClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth().background(BgDark).padding(20.dp)) {
+        Button(
+            onClick = onRsvpClick,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = if (isRegistered) Color.Gray else AccentPurple, contentColor = if (isRegistered) TextWhite else AccentPurpleDark)
+        ) {
+            Icon(Icons.Default.ConfirmationNumber, null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(if (isRegistered) "CANCELAR RESERVA" else "RESERVAR AGORA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+// --- RESTANTES COMPONENTES TRADUZIDOS ---
+
+@OptIn(ExperimentalSharedTransitionApi::class, InternalSerializationApi::class)
+@Composable
+fun HeaderSection(
+    event: Event,
+    onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    sharedTransitionScope: SharedTransitionScope
+) {
     val context = LocalContext.current
+    with(sharedTransitionScope) {
+        Box(modifier = Modifier.fillMaxWidth().height(350.dp)) {
+            AsyncImage(
+                model = event.imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .sharedElement(
+                        rememberSharedContentState(key = "image-${event.id}"),
+                        animatedVisibilityScope
+                    )
+            )
+            // Gradiente para o texto não sumir na imagem
+            Box(modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(colors = listOf(Color.Transparent, BgDark), startY = 300f)
+            ))
+
+            // Botões de Topo
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(
+                    onClick = onBackClick,
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = TextWhite) }
+
+                IconButton(
+                    onClick = {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            putExtra(Intent.EXTRA_TEXT, "Dá uma olhadela neste evento: ${event.title}");
+                            type = "text/plain"
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, "Partilhar evento"))
+                        onShareClick()
+                    },
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.4f))
+                ) { Icon(Icons.Default.Share, "Partilhar", tint = TextWhite) }
+            }
+
+            Text(
+                text = event.title,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextWhite,
+                modifier = Modifier.align(Alignment.BottomStart).padding(20.dp)
+            )
+        }
+    }
+}
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun InfoSection(event: Event, isFollowing: Boolean, onFollowClick: () -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Location", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
-        Spacer(modifier = Modifier.height(12.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF2C2C3E)).clickable {
-            val gmmIntentUri =  Uri.parse("geo:0,0?q=${Uri.encode(locationName)}")
-            try { context.startActivity(Intent(Intent.ACTION_VIEW, gmmIntentUri).setPackage("com.google.android.apps.maps")) }
-            catch (e: Exception) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(locationName)}"))) }
-        }) {
-            AsyncImage(model = "https://maps.googleapis.com/maps/api/staticmap?center=${locationName}&zoom=14&size=600x300&maptype=roadmap&key=YOUR_KEY", contentDescription = "Map", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.5f))
-            Icon(Icons.Default.LocationOn, null, tint = Color.Red, modifier = Modifier.align(Alignment.Center).size(40.dp))
-            Text("Tap to open Maps", color = TextWhite, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
+        // Data e Hora
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Local (Nome)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(event.locationName, style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Organizador
+        Row(
+            modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(shape = CircleShape, color = Color(0xFF7B61FF), modifier = Modifier.size(24.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("Eventify Oficial", color = TextWhite, style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(modifier = Modifier.size(4.dp).background(TextGray, CircleShape))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = if (isFollowing) "A Seguir" else "Seguir",
+                color = if (isFollowing) TextGray else Color(0xFFD0BCFF),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.clickable { onFollowClick() }
+            )
+        }
+    }
+}
+
+@OptIn(InternalSerializationApi::class)
+@Composable
+fun ChatBubble(message: ChatMessage, isMe: Boolean) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+    ) {
+        if (!isMe) {
+            Text(message.userName, style = MaterialTheme.typography.labelSmall, color = TextGray, modifier = Modifier.padding(start = 8.dp, bottom = 2.dp))
+        }
+        Surface(
+            color = if (isMe) Color(0xFF7B61FF) else ChipBg,
+            shape = RoundedCornerShape(
+                topStart = 16.dp, topEnd = 16.dp,
+                bottomStart = if (isMe) 16.dp else 4.dp,
+                bottomEnd = if (isMe) 4.dp else 16.dp
+            ),
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            Text(
+                text = message.text,
+                color = TextWhite,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -393,9 +498,19 @@ fun LocationMapSection(locationName: String) {
 fun CommentInputSection(onSendComment: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
     Row(modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Write a comment...", color = TextGray) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = TextGray, focusedTextColor = TextWhite, unfocusedTextColor = TextWhite, cursorColor = AccentPurple))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text("Escreve um comentário...", color = TextGray) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = TextGray, focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
+        )
         Spacer(modifier = Modifier.width(8.dp))
-        IconButton(onClick = { if (text.isNotBlank()) { onSendComment(text); text = "" } }, colors = IconButtonDefaults.iconButtonColors(containerColor = AccentPurple)) { Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = AccentPurpleDark) }
+        IconButton(
+            onClick = { if (text.isNotBlank()) { onSendComment(text); text = "" } },
+            colors = IconButtonDefaults.iconButtonColors(containerColor = AccentPurple)
+        ) { Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = AccentPurpleDark) }
     }
 }
 
@@ -403,11 +518,16 @@ fun CommentInputSection(onSendComment: (String) -> Unit) {
 fun CommentItem(comment: Comment) {
     Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(horizontal = 20.dp)) {
         Surface(shape = CircleShape, color = ChipBg, modifier = Modifier.size(40.dp)) {
-            if (comment.userPhotoUrl != null) AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop) else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
+            if (comment.userPhotoUrl != null) AsyncImage(model = comment.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop)
+            else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium); Spacer(modifier = Modifier.width(8.dp)); Text("Just now", color = TextGray, style = MaterialTheme.typography.labelSmall) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(comment.userName, color = TextWhite, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Agora mesmo", color = TextGray, style = MaterialTheme.typography.labelSmall)
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(comment.text, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
         }
@@ -420,13 +540,33 @@ fun ReviewInputSection(onSubmit: (Int, String) -> Unit) {
     var text by remember { mutableStateOf("") }
     Card(colors = CardDefaults.cardColors(containerColor = ChipBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Rate this event", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
+            Text("Avalia este evento", style = MaterialTheme.typography.titleMedium, color = TextWhite, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            Row { (1..5).forEach { index -> Icon(imageVector = if (index <= rating) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = "$index Stars", tint = StarYellow, modifier = Modifier.size(32.dp).clickable { rating = index }) } }
+            Row {
+                (1..5).forEach { index ->
+                    Icon(
+                        imageVector = if (index <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = "$index Estrelas",
+                        tint = StarYellow,
+                        modifier = Modifier.size(32.dp).clickable { rating = index }
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Write your review...", color = TextGray) }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = TextGray, focusedTextColor = TextWhite, unfocusedTextColor = TextWhite))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Escreve a tua avaliação...", color = TextGray) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AccentPurple, unfocusedBorderColor = TextGray, focusedTextColor = TextWhite)
+            )
             Spacer(modifier = Modifier.height(12.dp))
-            Button(onClick = { if (rating > 0) { onSubmit(rating, text); text = ""; rating = 0 } }, enabled = rating > 0, modifier = Modifier.align(Alignment.End), colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)) { Text("Post Review") }
+            Button(
+                onClick = { if (rating > 0) { onSubmit(rating, text); text = ""; rating = 0 } },
+                enabled = rating > 0,
+                modifier = Modifier.align(Alignment.End),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+            ) { Text("Publicar Avaliação", color = AccentPurpleDark, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -438,7 +578,7 @@ fun RatingSummary(rating: Double, count: Int) {
         Spacer(modifier = Modifier.width(12.dp))
         Column {
             Row { repeat(5) { index -> Icon(imageVector = if (index < rating.toInt()) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = null, tint = StarYellow, modifier = Modifier.size(16.dp)) } }
-            Text("$count reviews", color = TextGray, style = MaterialTheme.typography.bodyMedium)
+            Text("$count avaliações", color = TextGray, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -448,11 +588,16 @@ fun RatingSummary(rating: Double, count: Int) {
 fun ReviewItem(review: Review) {
     Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(horizontal = 20.dp)) {
         Surface(shape = CircleShape, color = ChipBg, modifier = Modifier.size(40.dp)) {
-            if (review.userPhotoUrl != null) AsyncImage(model = review.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop) else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
+            if (review.userPhotoUrl != null) AsyncImage(model = review.userPhotoUrl, contentDescription = null, contentScale = ContentScale.Crop)
+            else Icon(Icons.Default.Person, null, tint = TextGray, modifier = Modifier.padding(8.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) { Text(review.userName, color = TextWhite, fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.width(8.dp)); Row { repeat(review.rating) { Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(14.dp)) } } }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(review.userName, color = TextWhite, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(8.dp))
+                Row { repeat(review.rating) { Icon(Icons.Default.Star, null, tint = StarYellow, modifier = Modifier.size(14.dp)) } }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(review.comment, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
         }
@@ -460,44 +605,38 @@ fun ReviewItem(review: Review) {
 }
 
 @Composable
-fun AboutSection(description: String) {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("About this Event", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(description, style = MaterialTheme.typography.bodyMedium, color = TextGray, lineHeight = 24.sp)
-    }
-}
-
-@Composable
 fun TagsSection(category: String, price: Double) {
-    val tags = listOf(category, "Outdoor", "Festival", if (price == 0.0) "Free" else "Paid")
+    val tags = listOf(category, "Destaque", if (price == 0.0) "Grátis" else "Pago")
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Tags", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+        Text("Etiquetas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
         Spacer(modifier = Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            tags.forEach { tag -> Box(modifier = Modifier.background(ChipBg, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) { Text(tag, color = TextGray, style = MaterialTheme.typography.bodyMedium) } }
+            tags.forEach { tag ->
+                Box(modifier = Modifier.background(ChipBg, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(tag, color = TextGray, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }
 
-@Composable
-fun BottomActionSection(isRegistered: Boolean, onRsvpClick: () -> Unit) {
-    Box(modifier = Modifier.fillMaxWidth().background(BgDark).padding(20.dp)) {
-        Button(onClick = onRsvpClick, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isRegistered) Color.Gray else AccentPurple, contentColor = if (isRegistered) TextWhite else AccentPurpleDark)) {
-            Icon(Icons.Default.ConfirmationNumber, null, modifier = Modifier.size(20.dp)); Spacer(modifier = Modifier.width(12.dp)); Text(if (isRegistered) "CANCEL RSVP" else "RSVP NOW", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
+// Auxiliar de Formatação de Data
 private fun formatDateTime(dateTime: String): String {
     return try {
         val parsed = LocalDateTime.parse(dateTime)
-        val dayOfWeek = parsed.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-        val month = parsed.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-        val hour = parsed.hour.toString().padStart(2, '0')
-        val minute = parsed.minute.toString().padStart(2, '0')
-        "$dayOfWeek, $month ${parsed.dayOfMonth} • $hour:$minute"
+        val diaSemana = when(parsed.dayOfWeek.name) {
+            "MONDAY" -> "Seg"
+            "TUESDAY" -> "Ter"
+            "WEDNESDAY" -> "Qua"
+            "THURSDAY" -> "Qui"
+            "FRIDAY" -> "Sex"
+            "SATURDAY" -> "Sáb"
+            "SUNDAY" -> "Dom"
+            else -> parsed.dayOfWeek.name.take(3)
+        }
+        val mes = parsed.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
+        val hora = parsed.hour.toString().padStart(2, '0')
+        val minuto = parsed.minute.toString().padStart(2, '0')
+        "$diaSemana, ${parsed.dayOfMonth} de $mes • $hora:$minuto"
     } catch (e: Exception) { dateTime }
 }
-
-fun Modifier.alpha(alpha: Float) = this
