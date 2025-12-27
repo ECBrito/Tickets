@@ -77,7 +77,7 @@ fun EventCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = event.location,
+                    text = event.locationName,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

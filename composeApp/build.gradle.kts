@@ -35,6 +35,9 @@ kotlin {
             // --- UTILITÁRIOS (Para evitar conflitos de Futures) ---
             implementation("com.google.guava:guava:31.1-android")
             implementation("com.google.android.gms:play-services-location:21.1.0")
+
+            implementation("com.google.maps.android:maps-compose:4.3.3")
+            implementation("com.google.android.gms:play-services-maps:19.0.0")
         }
 
         commonMain.dependencies {
@@ -103,6 +106,10 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            // Garante que as bibliotecas nativas são alinhadas a 16KB
+            useLegacyPackaging = true
         }
     }
     buildTypes {

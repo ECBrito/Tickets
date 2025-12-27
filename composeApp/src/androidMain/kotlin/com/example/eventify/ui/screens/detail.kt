@@ -142,7 +142,7 @@ fun EventDetailScreen(
                                 Column {
                                     AboutSection(description = event!!.description)
                                     Spacer(modifier = Modifier.height(24.dp))
-                                    LocationMapSection(locationName = event!!.location)
+                                    LocationMapSection(locationName = event!!.locationName)
                                     Spacer(modifier = Modifier.height(24.dp))
                                     TagsSection(category = event!!.category, price = event!!.price)
                                     Spacer(modifier = Modifier.height(40.dp))
@@ -330,7 +330,7 @@ fun InfoSection(event: Event, isFollowing: Boolean, onFollowClick: () -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CalendarMonth, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(formatDateTime(event.dateTime), style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
         Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(event.location, style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
+        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = TextGray, modifier = Modifier.size(40.dp).background(ChipBg, CircleShape).padding(8.dp)); Spacer(modifier = Modifier.width(16.dp)); Text(event.locationName, style = MaterialTheme.typography.bodyLarge, color = TextWhite) }
         Spacer(modifier = Modifier.height(24.dp))
         Row(modifier = Modifier.border(1.dp, TextGray.copy(0.3f), RoundedCornerShape(50)).padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = AccentPurple, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text("E", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentPurpleDark) } }

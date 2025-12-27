@@ -13,7 +13,7 @@ import kotlinx.serialization.InternalSerializationApi
 
 class CreateEventViewModel(
     private val repository: EventRepository,
-    private val organizerId: String
+    private val currentUserId: String
 ) : ViewModel() {
 
     private val _loading = MutableStateFlow(false)
@@ -23,64 +23,49 @@ class CreateEventViewModel(
     fun createEvent(
         title: String,
         description: String,
-        location: String,
-        imageUrl: String?,
+        locationName: String, // Nome atualizado
         imageBytes: ByteArray?,
-        dateTime: String,    // Data de Início
-        endDateTime: String, // <--- NOVO PARÂMETRO (Data de Fim)
+        dateTime: String,
+        endDateTime: String,
         category: String,
-        price: Double = 0.0,
-        maxCapacity: Int = 100,
-        onSuccess: (() -> Unit)? = null,
-        onError: ((String) -> Unit)? = null
+        price: Double,
+        maxCapacity: Int,
+        latitude: Double,    // Novo
+        longitude: Double,   // Novo
+        isFeatured: Boolean, // Novo
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
     ) {
-        if (title.isBlank() || location.isBlank()) {
-            onError?.invoke("Título e Localização são obrigatórios")
-            return
-        }
-
-        _loading.value = true
-
         viewModelScope.launch {
+            _loading.value = true
             try {
-                var finalImageUrl = ""
+                // 1. Upload da imagem
+                val imageUrl = if (imageBytes != null) {
+                    repository.uploadEventImage(imageBytes, "event_${Clock.System.now().toEpochMilliseconds()}.jpg")
+                } else ""
 
-                // 1. UPLOAD
-                if (imageBytes != null) {
-                    val fileName = "${Clock.System.now().toEpochMilliseconds()}.jpg"
-                    val uploadedUrl = repository.uploadEventImage(imageBytes, fileName)
-                    if (uploadedUrl != null) finalImageUrl = uploadedUrl
-                }
-
-                // 2. CRIAR EVENTO
-                val event = Event(
-                    id = "",
+                // 2. Criar objeto Event (Garante que os nomes batem com o Event.kt)
+                val newEvent = Event(
                     title = title,
                     description = description,
-                    location = location,
-                    imageUrl = finalImageUrl,
+                    locationName = locationName,
+                    imageUrl = imageUrl ?: "",
                     dateTime = dateTime,
-                    endDateTime = endDateTime, // <--- GRAVAR NA BD
+                    endDateTime = endDateTime,
                     category = category,
-                    organizerId = organizerId,
-                    registeredUserIds = listOf(organizerId),
-                    isRegistered = true,
                     price = price,
                     maxCapacity = maxCapacity,
-                    shares = 0
+                    latitude = latitude,
+                    longitude = longitude,
+                    isFeatured = isFeatured,
+                    organizerId = currentUserId
                 )
 
-                // 3. GRAVAR
-                val success = repository.addEvent(event)
-
-                if (success) {
-                    onSuccess?.invoke()
-                } else {
-                    onError?.invoke("Falha ao gravar evento na base de dados.")
-                }
+                val success = repository.addEvent(newEvent)
+                if (success) onSuccess() else onError("Erro ao guardar na base de dados")
 
             } catch (e: Exception) {
-                onError?.invoke(e.message ?: "Erro desconhecido durante a criação.")
+                onError(e.message ?: "Erro desconhecido")
             } finally {
                 _loading.value = false
             }

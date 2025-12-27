@@ -226,7 +226,7 @@ fun ExploreEventCard(
                 )
 
                 InfoRow(icon = Icons.Default.CalendarMonth, text = event.dateTime)
-                InfoRow(icon = Icons.Default.LocationOn, text = event.location)
+                InfoRow(icon = Icons.Default.LocationOn, text = event.locationName)
 
                 Spacer(modifier = Modifier.height(8.dp))
 

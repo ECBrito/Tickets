@@ -15,9 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,11 +26,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.EventCategory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,12 +59,15 @@ fun EditEventScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // --- ESTADOS ---
+    // --- ESTADOS DO FORMULÁRIO (TRADUZIDOS) ---
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var capacity by remember { mutableStateOf("") }
+    var venueName by remember { mutableStateOf("") }
+    var priceText by remember { mutableStateOf("") }
+    var capacityText by remember { mutableStateOf("") }
+    var latText by remember { mutableStateOf("") }
+    var lonText by remember { mutableStateOf("") }
+    var isFeatured by remember { mutableStateOf(false) }
 
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf(EventCategory.OTHER) }
@@ -66,65 +76,30 @@ fun EditEventScreen(
     var newImageUri by remember { mutableStateOf<Uri?>(null) }
     var newImageBytes by remember { mutableStateOf<ByteArray?>(null) }
 
-    // --- DATAS (Start & End) ---
+    // Estado do Mapa
+    var showMapPicker by remember { mutableStateOf(false) }
+
+    // Datas
     val startCalendar = remember { Calendar.getInstance() }
     val endCalendar = remember { Calendar.getInstance() }
-
     var startDateDisplay by remember { mutableStateOf("") }
     var endDateDisplay by remember { mutableStateOf("") }
 
-    // Helpers de Formatação
-    fun formatToIso(calendar: Calendar): String {
-        val year = calendar.get(Calendar.YEAR)
-        val month = (calendar.get(Calendar.MONTH) + 1).toString().padStart(2, '0')
-        val day = calendar.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
-        val hour = calendar.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')
-        val minute = calendar.get(Calendar.MINUTE).toString().padStart(2, '0')
-        return "${year}-${month}-${day}T${hour}:${minute}"
-    }
-
-    fun formatDisplay(calendar: Calendar): String {
-        val day = calendar.get(Calendar.DAY_OF_MONTH)
-        val month = calendar.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.getDefault())
-        val hour = calendar.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')
-        val minute = calendar.get(Calendar.MINUTE).toString().padStart(2, '0')
-        return "$day $month, $hour:$minute"
-    }
-
-    // Helper para converter String ISO -> Calendar
-    fun parseIsoToCalendar(isoString: String, targetCalendar: Calendar) {
-        try {
-            if (isoString.isBlank()) return
-            // Formato esperado: YYYY-MM-DDTHH:mm
-            val parts = isoString.split("T")
-            val dateParts = parts[0].split("-")
-            val timeParts = parts[1].split(":")
-
-            targetCalendar.set(
-                dateParts[0].toInt(),      // Year
-                dateParts[1].toInt() - 1,  // Month (0-11)
-                dateParts[2].toInt(),      // Day
-                timeParts[0].toInt(),      // Hour
-                timeParts[1].toInt()       // Minute
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    // --- PRÉ-PREENCHIMENTO ---
+    // --- CARREGAR DADOS EXISTENTES ---
     LaunchedEffect(eventToEdit) {
         eventToEdit?.let { event ->
             if (title.isEmpty()) title = event.title
             if (description.isEmpty()) description = event.description
-            if (location.isEmpty()) location = event.location
+            if (venueName.isEmpty()) venueName = event.locationName
             if (currentImageUrl.isEmpty()) currentImageUrl = event.imageUrl
-            if (price.isEmpty()) price = event.price.toString()
-            if (capacity.isEmpty()) capacity = event.maxCapacity.toString()
+            if (priceText.isEmpty()) priceText = event.price.toString()
+            if (capacityText.isEmpty()) capacityText = event.maxCapacity.toString()
+            if (latText.isEmpty()) latText = event.latitude.toString()
+            if (lonText.isEmpty()) lonText = event.longitude.toString()
+            isFeatured = event.isFeatured
 
             try { selectedCategory = EventCategory.valueOf(event.category.uppercase()) } catch (e: Exception) {}
 
-            // Preencher Datas
             if (startDateDisplay.isEmpty()) {
                 parseIsoToCalendar(event.dateTime, startCalendar)
                 startDateDisplay = formatDisplay(startCalendar)
@@ -133,7 +108,6 @@ fun EditEventScreen(
                     parseIsoToCalendar(event.endDateTime, endCalendar)
                     endDateDisplay = formatDisplay(endCalendar)
                 } else {
-                    // Se não tiver data de fim, assume Start + 2h
                     endCalendar.timeInMillis = startCalendar.timeInMillis + (2 * 60 * 60 * 1000)
                     endDateDisplay = formatDisplay(endCalendar)
                 }
@@ -155,155 +129,234 @@ fun EditEventScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Event", color = Color.White) },
+                title = { Text("Editar Evento", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, "Voltar", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF151520))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0A12))
             )
         },
         bottomBar = {
             Button(
                 onClick = {
                     scope.launch {
-                        val priceVal = price.toDoubleOrNull() ?: 0.0
-                        val capVal = capacity.toIntOrNull() ?: 100
-
                         viewModel.updateEvent(
                             title = title,
                             description = description,
-                            location = location,
-                            dateTime = formatToIso(startCalendar),    // Start Formatada
-                            endDateTime = formatToIso(endCalendar),   // End Formatada
+                            locationName = venueName,
+                            dateTime = formatToIso(startCalendar),
+                            endDateTime = formatToIso(endCalendar),
                             category = selectedCategory.name,
-                            price = priceVal,
-                            maxCapacity = capVal,
+                            price = priceText.toDoubleOrNull() ?: 0.0,
+                            maxCapacity = capacityText.toIntOrNull() ?: 100,
+                            latitude = latText.toDoubleOrNull() ?: 0.0,
+                            longitude = lonText.toDoubleOrNull() ?: 0.0,
+                            isFeatured = isFeatured,
                             imageBytes = newImageBytes,
                             onSuccess = onSaveClick,
                             onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                         )
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(16.dp).height(50.dp),
-                enabled = !isLoading
+                modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B61FF))
             ) {
                 if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                else Text("Save Changes")
+                else Text("Guardar Alterações", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. IMAGEM
+            item { Spacer(Modifier.height(8.dp)) }
+
+            // 1. Imagem
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth().height(200.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1F1F2E))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1E1E2C))
                         .clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (newImageUri != null) {
-                        AsyncImage(model = newImageUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    } else if (currentImageUrl.isNotEmpty()) {
-                        AsyncImage(model = currentImageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    val displayImage = newImageUri ?: if (currentImageUrl.isNotEmpty()) currentImageUrl else null
+                    if (displayImage != null) {
+                        AsyncImage(model = displayImage, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
-                        Icon(Icons.Outlined.Image, null, tint = Color.Gray)
+                        Icon(Icons.Outlined.Image, null, tint = Color.Gray, modifier = Modifier.size(40.dp))
                     }
                 }
             }
 
-            // 2. CAMPOS BÁSICOS
+            // 2. Info Básica
             item {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
             }
 
-            // 3. CATEGORIA
+            // 3. Categoria
             item {
-                ExposedDropdownMenuBox(
-                    expanded = expandedCategory,
-                    onExpandedChange = { expandedCategory = !expandedCategory },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                ExposedDropdownMenuBox(expanded = expandedCategory, onExpandedChange = { expandedCategory = !expandedCategory }) {
                     OutlinedTextField(
                         value = selectedCategory.name.lowercase().replaceFirstChar { it.titlecase() },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
+                        onValueChange = {}, readOnly = true, label = { Text("Categoria") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                    ExposedDropdownMenu(
-                        expanded = expandedCategory,
-                        onDismissRequest = { expandedCategory = false }
-                    ) {
-                        EventCategory.entries.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category.name.lowercase().replaceFirstChar { it.titlecase() }) },
-                                onClick = {
-                                    selectedCategory = category
-                                    expandedCategory = false
-                                }
-                            )
+                    ExposedDropdownMenu(expanded = expandedCategory, onDismissRequest = { expandedCategory = false }) {
+                        EventCategory.entries.forEach { cat ->
+                            DropdownMenuItem(text = { Text(cat.name) }, onClick = { selectedCategory = cat; expandedCategory = false })
                         }
                     }
                 }
             }
 
-            // 4. DATAS (START E END)
+            // 4. Datas
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DateTimePickerField(
-                        label = "Starts",
-                        value = startDateDisplay,
-                        modifier = Modifier.weight(1f),
-                        context = context,
-                        calendar = startCalendar,
-                        onDateSelected = { startDateDisplay = formatDisplay(startCalendar) }
-                    )
-                    DateTimePickerField(
-                        label = "Ends",
-                        value = endDateDisplay,
-                        modifier = Modifier.weight(1f),
-                        context = context,
-                        calendar = endCalendar,
-                        onDateSelected = { endDateDisplay = formatDisplay(endCalendar) }
-                    )
+                    DateTimePickerField("Início", startDateDisplay, Modifier.weight(1f), context, startCalendar) { startDateDisplay = formatDisplay(startCalendar) }
+                    DateTimePickerField("Fim", endDateDisplay, Modifier.weight(1f), context, endCalendar) { endDateDisplay = formatDisplay(endCalendar) }
                 }
             }
 
-            // 5. PREÇO E LOTAÇÃO
+            // 5. Localização & MAPA
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = price,
-                        onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) price = it },
-                        label = { Text("Price ($)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
+                SectionHeaderSmall("Localização")
+                OutlinedTextField(value = venueName, onValueChange = { venueName = it }, label = { Text("Nome do Local") }, modifier = Modifier.fillMaxWidth())
 
-                    OutlinedTextField(
-                        value = capacity,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) capacity = it },
-                        label = { Text("Capacity") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
+                Spacer(Modifier.height(12.dp))
+
+                Button(
+                    onClick = { showMapPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E2E3E)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Outlined.Map, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Escolher Local no Mapa")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = latText, onValueChange = { latText = it }, label = { Text("Lat") }, modifier = Modifier.weight(1f), readOnly = true)
+                    OutlinedTextField(value = lonText, onValueChange = { lonText = it }, label = { Text("Lon") }, modifier = Modifier.weight(1f), readOnly = true)
+                }
+            }
+
+            // 6. Configurações
+            item {
+                SectionHeaderSmall("Configurações")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Preço (€)") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    OutlinedTextField(value = capacityText, onValueChange = { capacityText = it }, label = { Text("Lotação") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Destacar evento na Home", color = Color.White)
+                    Switch(checked = isFeatured, onCheckedChange = { isFeatured = it })
+                }
+            }
+            item { Spacer(Modifier.height(32.dp)) }
+        }
+    }
+
+    // --- DIALOG DO MAPA ---
+    if (showMapPicker) {
+        MapPickerFullDialog(
+            initialLat = latText.toDoubleOrNull() ?: 38.7075,
+            initialLon = lonText.toDoubleOrNull() ?: -9.1455,
+            onLocationSelected = { lat, lon ->
+                latText = String.format("%.6f", lat)
+                lonText = String.format("%.6f", lon)
+                showMapPicker = false
+            },
+            onDismiss = { showMapPicker = false }
+        )
+    }
+}
+
+// --- FUNÇÕES UTILITÁRIAS (UMA ÚNICA VEZ NO FIM DO FICHEIRO) ---
+
+@Composable
+fun MapPickerFullDialog(
+    initialLat: Double,
+    initialLon: Double,
+    onLocationSelected: (Double, Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var markerPosition by remember { mutableStateOf(LatLng(initialLat, initialLon)) }
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0B0A12)) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null, tint = Color.White) }
+                    Text("Mova o mapa para o local", color = Color.White, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = { onLocationSelected(markerPosition.latitude, markerPosition.longitude) }) {
+                        Text("Confirmar", color = Color(0xFF7B61FF), fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    onMapClick = { markerPosition = it }
+                ) {
+                    Marker(state = MarkerState(position = markerPosition))
                 }
             }
         }
     }
 }
 
-// (Mantém as funções uriToByteArray e DateTimePickerField no ficheiro ou importa-as)
-// ...
+
+
+@Composable
+fun DateTimePickerField(label: String, value: String, modifier: Modifier, context: Context, calendar: Calendar, onDateSelected: () -> Unit) {
+    val tpd = TimePickerDialog(context, { _, h, m -> calendar.set(Calendar.HOUR_OF_DAY, h); calendar.set(Calendar.MINUTE, m); onDateSelected() }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), true)
+    val dpd = DatePickerDialog(context, { _, y, m, d -> calendar.set(y, m, d); tpd.show() }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+
+    OutlinedTextField(
+        value = value, onValueChange = {}, readOnly = true, label = { Text(label) },
+        trailingIcon = { Icon(Icons.Default.CalendarMonth, null) },
+        modifier = modifier.clickable { dpd.show() },
+        enabled = false,
+        colors = OutlinedTextFieldDefaults.colors(disabledTextColor = Color.White, disabledBorderColor = Color.Gray)
+    )
+}
+
+
+
+fun uriToByteArray(context: Context, uri: Uri): ByteArray? {
+    return try { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Exception) { null }
+}
+
+fun parseIsoToCalendar(isoString: String, targetCalendar: Calendar) {
+    try {
+        if (isoString.isBlank()) return
+        val parts = isoString.split("T")
+        val dateParts = parts[0].split("-")
+        val timeParts = parts[1].split(":")
+        targetCalendar.set(dateParts[0].toInt(), dateParts[1].toInt() - 1, dateParts[2].toInt(), timeParts[0].toInt(), timeParts[1].toInt())
+    } catch (e: Exception) { }
+}

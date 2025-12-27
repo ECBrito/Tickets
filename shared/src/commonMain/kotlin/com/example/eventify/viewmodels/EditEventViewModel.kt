@@ -43,12 +43,15 @@ class EditEventViewModel(
     fun updateEvent(
         title: String,
         description: String,
-        location: String,
-        dateTime: String,     // Start
-        endDateTime: String,  // End <--- NOVO
+        locationName: String, // <--- Nome corrigido para bater com a UI
+        dateTime: String,
+        endDateTime: String,
         category: String,
         price: Double,
         maxCapacity: Int,
+        latitude: Double,     // <--- NOVO
+        longitude: Double,    // <--- NOVO
+        isFeatured: Boolean,  // <--- NOVO
         imageBytes: ByteArray?,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
@@ -66,15 +69,19 @@ class EditEventViewModel(
                     if (url != null) finalImageUrl = url
                 }
 
+                // Criar a cópia com TODOS os campos novos
                 val updatedEvent = currentEvent.copy(
                     title = title,
                     description = description,
-                    location = location,
+                    locationName = locationName,
                     dateTime = dateTime,
-                    endDateTime = endDateTime, // <--- GRAVA AQUI
+                    endDateTime = endDateTime,
                     category = category,
                     price = price,
                     maxCapacity = maxCapacity,
+                    latitude = latitude,
+                    longitude = longitude,
+                    isFeatured = isFeatured,
                     imageUrl = finalImageUrl
                 )
 

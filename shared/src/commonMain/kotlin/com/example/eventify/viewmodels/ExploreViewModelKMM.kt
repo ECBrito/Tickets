@@ -101,7 +101,7 @@ class ExploreViewModelKMM(
             // 1. Texto
             val matchesSearch = if (query.isBlank()) true else {
                 event.title.lowercase().contains(query) ||
-                        event.location.lowercase().contains(query) ||
+                        event.locationName.lowercase().contains(query) ||
                         event.category.lowercase().contains(query)
             }
             // 2. Preço

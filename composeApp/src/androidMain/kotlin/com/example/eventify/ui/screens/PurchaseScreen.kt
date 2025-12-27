@@ -100,7 +100,7 @@ fun PurchaseScreen(
         ) {
             event?.let { evt ->
                 Text(evt.title, style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("${evt.dateTime.take(10)} • ${evt.location}", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                Text("${evt.dateTime.take(10)} • ${evt.locationName}", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(24.dp))
 

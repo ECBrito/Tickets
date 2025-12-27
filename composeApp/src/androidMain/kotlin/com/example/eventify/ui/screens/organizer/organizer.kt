@@ -20,17 +20,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.eventify.di.AppModule
 import com.example.eventify.model.Event
-import com.example.eventify.ui.theme.EventifyTheme
-import com.example.eventify.viewmodels.OrganizerViewModel
 import kotlinx.serialization.InternalSerializationApi
 
-// --- Theme Colors ---
+// --- Configuração de Cores ---
 private val BgDark = Color(0xFF0B0A12)
 private val CardBg = Color(0xFF151520)
 private val AccentPurple = Color(0xFF7B61FF)
@@ -38,19 +35,23 @@ private val TextWhite = Color.White
 private val TextGray = Color(0xFF9CA3AF)
 private val GreenGrowth = Color(0xFF00E096)
 
-@OptIn(InternalSerializationApi::class)
+@OptIn(InternalSerializationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OrganizerDashboardScreen(
     onCreateEventClick: () -> Unit,
     onEventClick: (String) -> Unit,
     onScanClick: () -> Unit,
     onEditEventClick: (String) -> Unit,
-    onViewAttendeesClick: (String) -> Unit // <--- NOVO PARÂMETRO
+    onViewAttendeesClick: (String) -> Unit
 ) {
+    // 1. Injeção do ViewModel
     val viewModel = remember { AppModule.provideOrganizerViewModel() }
-    val events by viewModel.events.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
 
+    // 2. Coleta de Estado Reativo (Imports automáticos de getValue/setValue são essenciais aqui)
+    val events by viewModel.events.collectAsState()
+    val isLoading by viewModel.loading.collectAsState()
+
+    // 3. Dados Simulados para Estatísticas
     val totalRevenue = "$12,450"
     val revenueGrowth = "+5.2%"
     val registrations = "8,921"
@@ -92,22 +93,27 @@ fun OrganizerDashboardScreen(
                 )
             }
 
-            // Highlight Card
+            // Cartão de Destaque (Próximo Evento)
             if (events.isNotEmpty()) {
                 item {
+                    val firstEvent = events.first()
                     HighlightEventCard(
-                        event = events.first(),
-                        onClick = { onEventClick(events.first().id) },
-                        onDeleteClick = { viewModel.deleteEvent(events.first().id) },
-                        onEditClick = { onEditEventClick(events.first().id) },
-                        // Passamos a função nova:
-                        onViewAttendeesClick = { onViewAttendeesClick(events.first().id) }
+                        event = firstEvent,
+                        onClick = { onEventClick(firstEvent.id) },
+                        onDeleteClick = { viewModel.deleteEvent(firstEvent.id) },
+                        onEditClick = { onEditEventClick(firstEvent.id) },
+                        onViewAttendeesClick = { onViewAttendeesClick(firstEvent.id) }
                     )
                 }
             }
 
             item {
-                Text("Recent Events", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextWhite)
+                Text(
+                    text = "Recent Events",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextWhite
+                )
             }
 
             if (isLoading) {
@@ -117,10 +123,13 @@ fun OrganizerDashboardScreen(
                     }
                 }
             } else {
-                val recentList = if (events.isNotEmpty()) events.drop(1) else emptyList()
+                // Lista de eventos restantes
+                val recentList = if (events.size > 1) events.drop(1) else emptyList()
 
                 if (recentList.isEmpty() && events.size <= 1) {
-                    item { Text("No recent activity.", color = TextGray) }
+                    item {
+                        Text("No other events found.", color = TextGray, modifier = Modifier.padding(vertical = 8.dp))
+                    }
                 } else {
                     items(recentList) { event ->
                         DashboardEventItem(
@@ -128,7 +137,6 @@ fun OrganizerDashboardScreen(
                             onClick = { onEventClick(event.id) },
                             onDeleteClick = { viewModel.deleteEvent(event.id) },
                             onEditClick = { onEditEventClick(event.id) },
-                            // Passamos a função nova:
                             onViewAttendeesClick = { onViewAttendeesClick(event.id) }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -140,18 +148,25 @@ fun OrganizerDashboardScreen(
     }
 }
 
-// --- COMPONENTES ---
+// --- Componentes Auxiliares ---
 
 @Composable
 fun OrganizerHeader(onScanClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column {
             Text("Dashboard", style = MaterialTheme.typography.titleMedium, color = TextGray, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
             Text("Welcome back, Alex!", style = MaterialTheme.typography.headlineMedium, color = TextWhite, fontWeight = FontWeight.Bold)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onScanClick, colors = IconButtonDefaults.iconButtonColors(containerColor = CardBg)) {
+            IconButton(
+                onClick = onScanClick,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = CardBg)
+            ) {
                 Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan", tint = AccentPurple)
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -166,8 +181,8 @@ fun OrganizerHeader(onScanClick: () -> Unit) {
 fun StatsGrid(revenue: String, revGrowth: String, registrations: String, regGrowth: String, upcoming: String, hosted: String) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatCard(Modifier.weight(1f), Icons.Outlined.Paid, Color(0xFF7B61FF), "Total Revenue", revenue, "$revGrowth this month", GreenGrowth)
-            StatCard(Modifier.weight(1f), Icons.Outlined.Group, Color(0xFF7B61FF), "Registrations", registrations, "$regGrowth this month", GreenGrowth)
+            StatCard(Modifier.weight(1f), Icons.Outlined.Paid, AccentPurple, "Total Revenue", revenue, "$revGrowth this month", GreenGrowth)
+            StatCard(Modifier.weight(1f), Icons.Outlined.Group, AccentPurple, "Registrations", registrations, "$regGrowth this month", GreenGrowth)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             StatCardSmall(Modifier.weight(1f), Icons.Outlined.Event, "Upcoming", upcoming)
@@ -208,59 +223,65 @@ fun StatCardSmall(modifier: Modifier, icon: ImageVector, title: String, value: S
     }
 }
 
-@OptIn(InternalSerializationApi::class)
+@OptIn(InternalSerializationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HighlightEventCard(
     event: Event,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit,
-    onViewAttendeesClick: () -> Unit // <--- NOVO PARÂMETRO
+    onViewAttendeesClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val gradient = Brush.horizontalGradient(colors = listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)))
 
-    Card(onClick = onClick, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Box(modifier = Modifier.background(gradient).padding(24.dp)) {
             Column {
-                Spacer(modifier = Modifier.height(60.dp))
-                Text("Next Up: ${event.dateTime.take(10)}", color = AccentPurple.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(40.dp))
+                Text("Venue: ${event.locationName}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(event.title, style = MaterialTheme.typography.headlineSmall, color = TextWhite, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(event.description.take(80) + "...", style = MaterialTheme.typography.bodyMedium, color = TextWhite.copy(alpha = 0.8f))
+                Text(
+                    text = if (event.description.length > 80) event.description.take(80) + "..." else event.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextWhite.copy(alpha = 0.8f)
+                )
                 Spacer(modifier = Modifier.height(20.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text("1,200/2,000", color = TextWhite, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Registered", color = TextWhite.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+                        Text("${event.maxCapacity}", color = TextWhite, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Capacity", color = TextWhite.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
                     }
-                    Button(onClick = onClick, colors = ButtonDefaults.buttonColors(containerColor = AccentPurple), shape = RoundedCornerShape(12.dp)) {
-                        Text("Manage Event")
+                    Button(onClick = onClick, colors = ButtonDefaults.buttonColors(containerColor = BgDark.copy(alpha = 0.5f)), shape = RoundedCornerShape(12.dp)) {
+                        Text("Manage")
                     }
                 }
             }
 
-            // MENU
+            // Menu de Opções
             Box(modifier = Modifier.align(Alignment.TopEnd)) {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "Options", tint = Color.White) }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = CardBg) {
-                    // OPÇÃO 1: EDITAR
                     DropdownMenuItem(
                         text = { Text("Edit Event", color = Color.White) },
                         onClick = { showMenu = false; onEditClick() },
                         leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White) }
                     )
-                    // OPÇÃO 2: VER PARTICIPANTES (NOVA)
                     DropdownMenuItem(
-                        text = { Text("Manage Attendees", color = Color.White) },
+                        text = { Text("Attendees", color = Color.White) },
                         onClick = { showMenu = false; onViewAttendeesClick() },
                         leadingIcon = { Icon(Icons.Default.People, null, tint = Color.White) }
                     )
                     HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
-                    // OPÇÃO 3: APAGAR
                     DropdownMenuItem(
-                        text = { Text("Delete Event", color = Color(0xFFFF3D71)) },
+                        text = { Text("Delete", color = Color(0xFFFF3D71)) },
                         onClick = { showMenu = false; onDeleteClick() },
                         leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color(0xFFFF3D71)) }
                     )
@@ -270,20 +291,30 @@ fun HighlightEventCard(
     }
 }
 
-@OptIn(InternalSerializationApi::class)
+@OptIn(InternalSerializationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardEventItem(
     event: Event,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit,
-    onViewAttendeesClick: () -> Unit // <--- NOVO PARÂMETRO
+    onViewAttendeesClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Card(onClick = onClick, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = CardBg), modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color.DarkGray))
+            AsyncImage(
+                model = event.imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color.DarkGray)
+            )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(event.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextWhite, maxLines = 1)
@@ -291,11 +322,10 @@ fun DashboardEventItem(
                 Text(event.dateTime.take(10), style = MaterialTheme.typography.bodySmall, color = TextGray)
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(color = GreenGrowth.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
-                    Text("Live", color = GreenGrowth, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                    Text("Confirmed", color = GreenGrowth, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
             }
 
-            // MENU
             Box {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, "More", tint = TextGray) }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = CardBg) {
@@ -305,26 +335,18 @@ fun DashboardEventItem(
                         leadingIcon = { Icon(Icons.Default.Edit, null, tint = Color.White) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Manage Attendees", color = Color.White) },
+                        text = { Text("Attendees", color = Color.White) },
                         onClick = { showMenu = false; onViewAttendeesClick() },
                         leadingIcon = { Icon(Icons.Default.People, null, tint = Color.White) }
                     )
                     HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
                     DropdownMenuItem(
-                        text = { Text("Delete Event", color = Color(0xFFFF3D71)) },
+                        text = { Text("Delete", color = Color(0xFFFF3D71)) },
                         onClick = { showMenu = false; onDeleteClick() },
                         leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color(0xFFFF3D71)) }
                     )
                 }
             }
         }
-    }
-}
-
-@Preview
-@Composable
-fun OrganizerDashboardPreview() {
-    EventifyTheme(darkTheme = true) {
-        OrganizerDashboardScreen({}, {}, {}, {}, {})
     }
 }

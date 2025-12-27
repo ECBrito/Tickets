@@ -58,7 +58,7 @@ class MyEventsViewModelKMM(
                 Event(
                     id = ticket.id, // ID do Bilhete
                     title = ticket.eventTitle,
-                    location = ticket.eventLocation,
+                    locationName = ticket.eventLocation,
                     imageUrl = ticket.eventImage,
                     dateTime = ticket.eventDate,
                     isRegistered = true

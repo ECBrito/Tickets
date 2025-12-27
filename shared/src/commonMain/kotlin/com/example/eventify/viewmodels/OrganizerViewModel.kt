@@ -2,100 +2,77 @@ package com.example.eventify.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-
-import com.example.eventify.model.Category
 import com.example.eventify.model.Event
 import com.example.eventify.repository.EventRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.InternalSerializationApi
+import kotlinx.datetime.Clock
 
 @OptIn(InternalSerializationApi::class)
 class OrganizerViewModel(
-    private val repository: EventRepository // <--- Nome da interface corrigido
+    private val repository: EventRepository
 ) : ViewModel() {
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
-    // Mantemos duas listas: Todos os eventos (raw) e os Filtrados (display)
-    @OptIn(InternalSerializationApi::class)
-    private val _allEvents = MutableStateFlow<List<Event>>(emptyList())
+    // 1. A lista de eventos que a UI precisa
+    val events: StateFlow<List<Event>> = repository.events
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _events = MutableStateFlow<List<Event>>(emptyList())
-    @OptIn(InternalSerializationApi::class)
-    val events: StateFlow<List<Event>> = _events.asStateFlow()
-
-    init {
-        // Coleção reativa dos eventos
+    // 2. Função para apagar eventos
+    fun deleteEvent(eventId: String) {
         viewModelScope.launch {
-            _isLoading.value = true
-
-            // O 'collect' substitui o 'startListening' antigo
-            repository.events.collect { list ->
-                _allEvents.value = list
-                _events.value = list // Inicialmente mostra tudo
-                _isLoading.value = false
-            }
+            repository.deleteEvent(eventId)
         }
     }
 
     fun createEvent(
-        id: String, // Nota: Se o ID for vazio "", o repo gera um novo
         title: String,
         description: String,
-        location: String,
-        imageUrl: String,
+        locationName: String,
+        imageBytes: ByteArray?,
         dateTime: String,
-        category: Category
+        endDateTime: String,
+        category: String,
+        price: Double,
+        maxCapacity: Int,
+        latitude: Double,
+        longitude: Double,
+        isFeatured: Boolean,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
     ) {
-        val newEvent = Event(
-            id = id,
-            title = title,
-            description = description,
-            location = location,
-            imageUrl = imageUrl,
-            dateTime = dateTime,
-            category = category.name, // Assume que Category é um Enum ou tem .name
-            registeredUserIds = emptyList(),
-            isRegistered = false
-        )
-
         viewModelScope.launch {
-            _isLoading.value = true
-            repository.addEvent(newEvent)
-            _isLoading.value = false
+            _loading.value = true
+            try {
+                val imageUrl = if (imageBytes != null) {
+                    repository.uploadEventImage(imageBytes, "event_${Clock.System.now().toEpochMilliseconds()}.jpg")
+                } else ""
+
+                val newEvent = Event(
+                    title = title,
+                    description = description,
+                    locationName = locationName,
+                    imageUrl = imageUrl ?: "",
+                    dateTime = dateTime,
+                    endDateTime = endDateTime,
+                    category = category,
+                    price = price,
+                    maxCapacity = maxCapacity,
+                    latitude = latitude,
+                    longitude = longitude,
+                    isFeatured = isFeatured
+                )
+
+                val success = repository.addEvent(newEvent)
+                if (success) onSuccess() else onError("Erro ao guardar")
+            } catch (e: Exception) {
+                onError(e.message ?: "Erro")
+            } finally {
+                _loading.value = false
+            }
         }
     }
-
-    fun deleteEvent(eventId: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            // O repositório já tem esta função implementada desde o início!
-            repository.deleteEvent(eventId)
-            // Como o Flow 'events' é em tempo real, a lista atualiza-se sozinha
-            _isLoading.value = false
-        }
-    }
-
-    fun toggleEventRegistration(eventId: String, userId: String) {
-        viewModelScope.launch {
-            repository.toggleEventRegistration(eventId, userId)
-        }
-    }
-
-    fun searchEvents(query: String) {
-        // Filtramos a lista localmente em vez de chamar o repositório
-        // Isto é mais rápido e reativo
-        val currentList = _allEvents.value
-
-        if (query.isBlank()) {
-            _events.value = currentList
-        } else {
-            _events.value = repository.searchEvents(query, currentList)
-        }
-    }
-
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,7 +43,7 @@ fun ExploreMapScreen(
                 navigationIcon = {
                     IconButton(onClick = onBackToListView) {
                         Icon(
-                            imageVector = Icons.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Voltar",
                             tint = Color.White
                         )
@@ -64,7 +65,7 @@ fun ExploreMapScreen(
                 ) {
                     events.forEach { event ->
                         // Converte a string "lat,lng" do Firebase para coordenadas do mapa
-                        val coordinates = parseLocation(event.location)
+                        val coordinates = parseLocation(event.locationName)
 
                         if (coordinates != null) {
                             Marker(
