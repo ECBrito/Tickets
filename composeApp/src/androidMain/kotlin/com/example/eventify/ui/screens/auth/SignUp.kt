@@ -22,12 +22,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.eventify.R
 import com.example.eventify.ui.components.AuthTextField
 import com.example.eventify.ui.components.PrimaryButton
-import com.example.eventify.ui.theme.EventifyTheme
 import com.example.eventify.ui.viewmodels.RegisterViewModel
 
-import com.example.eventify.R
 @Composable
 fun SignUpScreen(
     onSignUpClick: () -> Unit,
@@ -56,7 +55,7 @@ fun SignUpScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Títulos com peso visual
+            // Cabeçalho
             Text(
                 text = "Create Account",
                 style = MaterialTheme.typography.headlineLarge,
@@ -71,7 +70,7 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Grupo de Inputs
+            // Formulário
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AuthTextField(
                     value = name,
@@ -104,10 +103,10 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botão Principal
+            // Botão Principal com Loading Integrado
             PrimaryButton(
-                text = if (isLoading) "Creating..." else "Sign Up",
-                enabled = !isLoading,
+                text = if (isLoading) "Creating Account..." else "Sign Up",
+                enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
                 onClick = {
                     if (password != confirmPassword) {
                         errorMessage = "Passwords do not match"
@@ -125,38 +124,48 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botão Google Moderno
+            // Divisor Visual para Login Social
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 8.dp)
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                Text(
+                    text = " or ",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botão Google
             OutlinedButton(
-                onClick = { /* TODO: Google Auth */ },
+                onClick = { /* Google Login */ },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    // Substitui pelo teu painterResource do logo do google
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_google),
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.Unspecified // Mantém as cores originais do logo
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.Unspecified
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("Sign up with Google", style = MaterialTheme.typography.titleMedium)
+                    Text("Sign up with Google", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
 
-            // Mensagem de Erro formatada
+            // Tratamento de Erro
             if (!errorMessage.isNullOrEmpty()) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth()
+                    modifier = Modifier.padding(top = 24.dp).fillMaxWidth()
                 ) {
                     Text(
                         text = errorMessage!!,
@@ -168,27 +177,20 @@ fun SignUpScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // Footer ajustado
-            Row(
-                modifier = Modifier.padding(bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Already have an account? ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // Link para Login
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Already have an account? ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     text = "Sign In",
                     modifier = Modifier.clickable { onSignInClick() },
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
