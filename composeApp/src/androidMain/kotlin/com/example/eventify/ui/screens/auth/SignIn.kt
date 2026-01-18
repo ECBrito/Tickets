@@ -18,14 +18,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.eventify.auth.AuthState
-import com.example.eventify.ui.components.AuthTextField // <--- IMPORTA O COMPONENTE QUE CRIASTE NO OUTRO FICHEIRO
+import com.example.eventify.ui.components.AuthTextField
 import com.example.eventify.ui.components.PrimaryButton
 import com.example.eventify.ui.theme.EventifyTheme
 import com.example.eventify.ui.viewmodels.AuthViewModel
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 fun SignInScreen(
-    onSignInClick: () -> Unit, // Callback para sucesso (navegar para Home)
+    onSignInClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
     onSignUpClick: () -> Unit,
     viewModel: AuthViewModel = viewModel()
@@ -33,111 +35,139 @@ fun SignInScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // Observa o estado de autenticação do Firebase
     val authState by viewModel.authState.collectAsState()
     val isAuthenticating = authState == AuthState.Initial
 
-    // Se o utilizador estiver autenticado com sucesso, navega para a Home
     LaunchedEffect(authState) {
         if (authState == AuthState.Authenticated) {
             onSignInClick()
         }
     }
 
-    Column(
+    // Usamos um Box para permitir elementos sobrepostos ou fundos complexos
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
     ) {
-        // Logo ou Título
-        Text(
-            text = "Eventify",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Welcome back!",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Inputs (Usa o teu componente AuthTextField importado)
-        AuthTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = "Email",
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-            keyboardType = KeyboardType.Email
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        AuthTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = "Password",
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-            isPassword = true
-        )
-
-        // Forgot Password Link
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            TextButton(onClick = onForgotPasswordClick) {
-                Text("Forgot password?", color = MaterialTheme.colorScheme.primary)
+            // Ícone num contentor circular para dar profundidade
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // Botão de Login
-        PrimaryButton(
-            text = "Sign In",
-            enabled = !isAuthenticating && email.isNotBlank() && password.isNotBlank(),
-            onClick = {
-                // Chama o login real do Firebase
-                viewModel.signIn(email, password)
+            Text(
+                text = "Eventify",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Text(
+                text = "Sign in to continue",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Inputs organizados
+            AuthTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                leadingIcon = { Icon(Icons.Default.Email, null) },
+                keyboardType = KeyboardType.Email
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            AuthTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                isPassword = true
+            )
+
+            // Forgot Password alinhado à direita com estilo subtil
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onForgotPasswordClick) {
+                    Text(
+                        "Forgot password?",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
-        )
 
-        // Mensagem de Erro (se o login falhar)
-        if (authState is AuthState.Error) {
-            Text(
-                text = (authState as AuthState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp)
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Botão Principal - Mais alto e com cantos arredondados (M3)
+            PrimaryButton(
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                text = "Sign In",
+                enabled = !isAuthenticating && email.isNotBlank() && password.isNotBlank(),
+                onClick = { viewModel.signIn(email, password) }
             )
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            // Erro com visual de "Toast" ou Card integrado
+            if (authState is AuthState.Error) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = (authState as AuthState.Error).message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
 
-        // Link para Registo
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Don't have an account? ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                text = "Sign up",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onSignUpClick() }
-            )
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Footer
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Don't have an account? ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Sign up",
+                    modifier = Modifier.clickable { onSignUpClick() },
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
         }
     }
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun SignInScreenPreview() {
-    EventifyTheme(darkTheme = true) {
+    EventifyTheme(darkTheme = false) {
         SignInScreen(onSignInClick = {}, onForgotPasswordClick = {}, onSignUpClick = {})
     }
 }
