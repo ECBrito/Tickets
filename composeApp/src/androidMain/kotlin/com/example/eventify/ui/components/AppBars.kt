@@ -1,33 +1,36 @@
 package com.example.eventify.ui.components
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-// Classes/objetos de dados para BottomNav
-sealed class BottomNavItem(val route: String, val icon: ImageVector, val label: String) {
-    object Home : BottomNavItem("home", Icons.Default.Home, "Home")
-    object Explore : BottomNavItem("explore", Icons.Default.Search, "Explore")
-    object MyEvents : BottomNavItem("myevents", Icons.AutoMirrored.Filled.List, "My Events")
-    object Profile : BottomNavItem("profile", Icons.Default.AccountCircle, "Profile")
+sealed class BottomNavItem(
+    val route: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector,
+    val label: String
+) {
+    data object Home : BottomNavItem("home", Icons.Default.Home, Icons.Outlined.Home, "Home")
+    data object Explore : BottomNavItem("explore", Icons.Default.Search, Icons.Outlined.Search, "Explore")
+    data object MyEvents : BottomNavItem("myevents", Icons.AutoMirrored.Filled.List, Icons.AutoMirrored.Outlined.List, "Events")
+    data object Profile : BottomNavItem("profile", Icons.Default.AccountCircle, Icons.Outlined.AccountCircle, "Profile")
 }
 
 val bottomNavItems = listOf(
@@ -39,20 +42,43 @@ val bottomNavItems = listOf(
 
 @Composable
 fun EventifyBottomBar(
+    currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
-    var selectedItem by remember { mutableIntStateOf(0) }
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 8.dp,
+        windowInsets = WindowInsets.navigationBars
+    ) {
+        bottomNavItems.forEach { item ->
+            val isSelected = currentRoute == item.route
 
-    NavigationBar {
-        bottomNavItems.forEachIndexed { index, item ->
             NavigationBarItem(
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
-                selected = selectedItem == index,
-                onClick = {
-                    selectedItem = index
-                    onNavigate(item.route)
-                }
+                selected = isSelected,
+                onClick = { onNavigate(item.route) },
+                label = {
+                    Text(
+                        text = item.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        letterSpacing = 0.5.sp
+                    )
+                },
+                icon = {
+                    val icon = if (isSelected) item.selectedIcon else item.unselectedIcon
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = item.label,
+                        modifier = Modifier.size(26.dp)
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
             )
         }
     }
@@ -66,19 +92,24 @@ fun IconButtonWithBadge(
     contentDescription: String? = null
 ) {
     IconButton(onClick = onClick) {
-        if (badgeCount != null && badgeCount > 0) {
-            BadgedBox(
-                badge = { Badge { Text(text = badgeCount.toString()) } }
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription
-                )
+        BadgedBox(
+            badge = {
+                if (badgeCount != null && badgeCount > 0) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                    ) {
+                        Text(text = badgeCount.toString())
+                    }
+                }
             }
-        } else {
+        ) {
             Icon(
                 imageVector = icon,
-                contentDescription = contentDescription
+                contentDescription = contentDescription,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
     }
