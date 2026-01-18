@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties // Necessário para ler segredos do local.properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -7,6 +8,15 @@ plugins {
     alias(libs.plugins.composeCompiler)
     id("com.google.gms.google-services")
 }
+
+// --- SECURE API KEY HANDLING ---
+// Lê a chave do ficheiro local.properties (que não deve ir para o GitHub)
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
 
 kotlin {
     androidTarget {
@@ -83,7 +93,7 @@ kotlin {
             // --- FIREBASE CLOUD MESSAGING (FCM) ---
             implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
 
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.2")) // Tenta uma versão recente
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:32.7.2"))
         }
 
         commonTest.dependencies {
@@ -102,19 +112,23 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+
+        // Injeta a chave lida no Manifesto através de um placeholder
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            // Garante que as bibliotecas nativas são alinhadas a 16KB
             useLegacyPackaging = true
         }
     }
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            // OWASP: Ativa minificação e ofuscação para proteger código-fonte
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
