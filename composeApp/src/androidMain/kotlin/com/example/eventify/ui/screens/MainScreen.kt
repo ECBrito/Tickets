@@ -2,6 +2,7 @@ package com.example.eventify.ui.screens
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.eventify.di.AppModule
 import com.example.eventify.ui.Screen
 import com.example.eventify.ui.components.BottomNavItem
@@ -41,21 +43,22 @@ fun MainScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
-    // 1. Definições Iniciais
     var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val repository = remember { AppModule.eventRepository }
 
-    // 2. VIEWMODEL (Criar primeiro para poder usar as propriedades abaixo)
     val homeViewModel = remember { AppModule.provideHomeViewModel() }
 
-    // 3. COLETAR ESTADOS (userLat e userLon agora existem para o compilador)
     val userLat by homeViewModel.userLat.collectAsState(initial = null)
     val userLon by homeViewModel.userLon.collectAsState(initial = null)
 
-    // 4. Lançador de Permissão de GPS
+    // Lógica para o botão "Back" do sistema
+    BackHandler(enabled = currentRoute != BottomNavItem.Home.route) {
+        currentRoute = BottomNavItem.Home.route
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -74,7 +77,6 @@ fun MainScreen(
         )
     }
 
-    // 5. Permissão de Notificações (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val notificationPermission = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
         LaunchedEffect(Unit) {
@@ -85,7 +87,6 @@ fun MainScreen(
         }
     }
 
-    // 6. Token FCM
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotBlank()) {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -98,16 +99,24 @@ fun MainScreen(
 
     Scaffold(
         containerColor = Color(0xFF0B0A12),
-        bottomBar = { EventifyBottomBar(onNavigate = { route -> currentRoute = route }) }
+        bottomBar = {
+            EventifyBottomBar(
+                currentRoute = currentRoute,
+                onNavigate = { route -> currentRoute = route }
+            )
+        }
     ) { innerPadding ->
 
         AnimatedContent(
             targetState = currentRoute,
-            modifier = Modifier.padding(innerPadding).fillMaxSize(),
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
             label = "MainTabs",
-            transitionSpec = { fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300)) }
+            transitionSpec = {
+                fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+            }
         ) { targetRoute ->
-
             when (targetRoute) {
                 BottomNavItem.Home.route -> {
                     HomeScreenContent(
@@ -116,7 +125,7 @@ fun MainScreen(
                         userLon = userLon,
                         onEventClick = { eventId -> navController.navigate(Screen.eventDetail(eventId)) },
                         onSeeAllClick = { currentRoute = BottomNavItem.Explore.route },
-                        onSearchClick = { /* Opcional: Navegar para pesquisa */ },
+                        onSearchClick = { /* Opcional */ },
                         onNotificationsClick = { navController.navigate(Screen.NOTIFICATIONS) },
                         onProfileClick = { currentRoute = BottomNavItem.Profile.route },
                         animatedVisibilityScope = animatedVisibilityScope,
