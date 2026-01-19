@@ -10,6 +10,7 @@ import kotlinx.serialization.InternalSerializationApi
 
 private const val EVENTS_COLLECTION = "events"
 
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 class FirestoreEventService(
     private val firestore: FirebaseFirestore = Firebase.firestore
 ) {

@@ -10,12 +10,6 @@ import dev.gitlive.firebase.storage.storage
 
 object AppModule {
 
-    init {
-        // Deves inicializar isto para prevenir uso não autorizado das tuas chaves de API
-        // No Android usa Play Integrity, no iOS DeviceCheck
-        val firebaseApp = Firebase.app
-        // Firebase.appCheck.install(PlayIntegrityAppCheckProviderFactory.getInstance())
-    }
     private val firestore = Firebase.firestore
     private val storage = Firebase.storage
     private val auth = Firebase.auth // <--- Inicializa o Auth
