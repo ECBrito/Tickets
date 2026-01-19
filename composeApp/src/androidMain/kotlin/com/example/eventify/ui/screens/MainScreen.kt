@@ -145,8 +145,13 @@ fun MainScreen(
                 BottomNavItem.MyEvents.route -> {
                     MyEvents(
                         userId = currentUserId,
-                        onTicketClick = { tid -> navController.navigate(Screen.ticketDetail(tid, "O Meu Bilhete")) },
-                        onFavoriteClick = { eid -> navController.navigate(Screen.eventDetail(eid)) }
+                        // CORREÇÃO: Agora recebe dois parâmetros (tid e title)
+                        onTicketClick = { tid, title ->
+                            navController.navigate(Screen.ticketDetail(tid, title))
+                        },
+                        onFavoriteClick = { eid ->
+                            navController.navigate(Screen.eventDetail(eid))
+                        }
                     )
                 }
 
