@@ -14,6 +14,20 @@ class FirestoreEventService(
     private val firestore: FirebaseFirestore = Firebase.firestore
 ) {
 
+    // Limites
+    private val MAX_NAME_LENGTH = 100
+    private val MAX_DESCRIPTION_LENGTH = 2000
+
+    private fun validateEvent(event: Event) {
+        require(event.title.isNotBlank()) { "O título não pode estar vazio" }
+        require(event.title.length <= MAX_NAME_LENGTH) { "Título demasiado longo" }
+        require(event.description.length <= MAX_DESCRIPTION_LENGTH) { "Descrição excede o limite" }
+        // Sanitização básica: remover espaços extras
+        event.copy(
+            title = event.title.trim(),
+            description = event.description.trim()
+        )
+    }
     @OptIn(InternalSerializationApi::class)
     fun getAllEventsFlow(): Flow<List<Event>> {
         return firestore.collection(EVENTS_COLLECTION)
@@ -24,9 +38,9 @@ class FirestoreEventService(
                 }
             }
     }
-
     @OptIn(InternalSerializationApi::class)
     suspend fun saveEvent(event: Event) {
+        validateEvent(event)
         val collectionRef = firestore.collection(EVENTS_COLLECTION)
         if (event.id.isEmpty()) {
             collectionRef.add(event)
@@ -34,7 +48,6 @@ class FirestoreEventService(
             collectionRef.document(event.id).set(event)
         }
     }
-
     suspend fun deleteEvent(eventId: String) {
         firestore.collection(EVENTS_COLLECTION).document(eventId).delete()
     }
